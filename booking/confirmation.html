@@ -32,6 +32,8 @@
 <script type="module">
   import { mountChrome } from '/assets/js/shared-chrome.js';
   import { trackBooking } from '/assets/js/services/bookings.js';
+  import { fetchSettings } from '/assets/js/services/settings.js';
+  import { buildBookingConfirmationMessage, buildWhatsAppLink } from '/assets/js/whatsapp-helper.js';
   mountChrome('packages');
 
   const root = document.getElementById('confirmRoot');
@@ -73,7 +75,7 @@
     }
   }
 
-  function renderConfirmed(b) {
+  async function renderConfirmed(b) {
     const dateStr = new Date(b.scheduled_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
     root.innerHTML = `
       <div class="confirmation-check">✅</div>
@@ -86,13 +88,31 @@
         <div class="review-row"><span>Date &amp; Time</span><span>${dateStr}, ${b.slot_label}</span></div>
         <div class="review-row"><span>Collection</span><span>${b.collection_type === 'home' ? '🏠 Home Collection' : '🏥 Walk-in at Lab'}</span></div>
         ${b.city ? `<div class="review-row"><span>Area</span><span>${b.city}${b.pincode ? ' — ' + b.pincode : ''}</span></div>` : ''}
+        <div class="review-row"><span>Amount</span><span>₹${Number(b.final_amount).toLocaleString('en-IN')}</span></div>
         <div class="review-row"><span>Status</span><span class="badge badge-blue">${b.status}</span></div>
       </div>
       <div class="wizard-nav" style="flex-wrap:wrap;">
         <a href="/pages/track-booking.html?code=${encodeURIComponent(b.booking_code)}" class="btn btn-primary"><i class="fas fa-map-marker-alt"></i> Track Booking</a>
         <a href="/pages/my-bookings.html" class="btn btn-outline">My Bookings</a>
+        <button type="button" class="btn btn-outline" id="waConfirmBtn" style="border-color:#25D366;color:#25D366;"><i class="fab fa-whatsapp"></i> Send WhatsApp Confirmation</button>
         <a href="/index.html" class="btn btn-ghost">Back to Home</a>
       </div>`;
+
+    // WhatsApp is a plain wa.me click-to-chat link — this only ever
+    // opens WhatsApp with the message pre-filled for the visitor to
+    // send themselves; nothing is sent automatically (no WhatsApp
+    // Business API integration exists anywhere in this project).
+    document.getElementById('waConfirmBtn').addEventListener('click', async () => {
+      let supportPhone;
+      try { supportPhone = (await fetchSettings()).support_phone; } catch (e) { /* falls back below */ }
+      const message = buildBookingConfirmationMessage({
+        bookingCode: b.booking_code, patientName: b.patient_name, itemName: b.item_name,
+        collectionType: b.collection_type, dateStr, slotLabel: b.slot_label,
+        amount: b.final_amount, addressLine: b.address_line, city: b.city, pincode: b.pincode,
+        supportPhone,
+      });
+      window.open(buildWhatsAppLink(phone, message), '_blank', 'noopener');
+    });
   }
 
   load();
