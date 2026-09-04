@@ -15,6 +15,7 @@ Live project: **my prime diagnoatics lab** (`woedykgrzczgogtymfxg`, `ap-south-1`
 | 0005 | `supabase/migrations/0005_booking_rpcs.sql` | `get_slot_availability()`, `create_booking()`, `update_booking_stage()`, `track_booking()`, `track_booking_timeline()`. Enabled Realtime on `bookings` and `booking_status_history`. |
 | 0006 | `supabase/migrations/0006_appointment_slots_unique_label.sql` | Added a unique constraint on `appointment_slots.label`, caught while writing the seed file (see BOOKING_IMPLEMENTATION.md §2). |
 | 0007 | `supabase/migrations/0007_fix_ambiguous_status_column.sql` | Fixed a real bug found by running the flow in-browser: `create_booking()`'s ambiguous `status` reference (see BOOKING_IMPLEMENTATION.md §2). |
+| 0008 | `supabase/migrations/0008_relocate_internal_helpers_to_private_schema.sql` | Moved `is_main_admin`, `is_staff`, `current_user_role`, `handle_new_auth_user`, `prevent_self_role_escalation`, `can_view_booking` into a new `private` schema (never exposed to PostgREST) — closes the known advisor WARN from Phase 2. See SECURITY.md §2.1 for why this was safe and how it was re-verified. |
 | — | `supabase/seed/001_catalog_seed.sql` | Real catalog data ported from `index-1.html` (5 packages, 31 features, 15 tests) — not synthetic. |
 | — | `supabase/seed/002_appointment_slots_seed.sql` | The exact 8 time windows from `index-1.html`'s booking form. |
 

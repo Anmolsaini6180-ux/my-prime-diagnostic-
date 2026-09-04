@@ -14,7 +14,7 @@ Every table created so far has RLS enabled from the moment it was created (verif
 |---|---|---|
 | `main_admin_locks` created without RLS enabled | **Critical** | Fixed in migration 0002, re-verified via advisor — 0 critical/error findings remain. |
 | `set_updated_at()` had a mutable search_path | Warn | Fixed in migration 0002. |
-| `is_main_admin()`, `is_staff()`, `current_user_role()`, `handle_new_auth_user()`, `prevent_self_role_escalation()`, `can_view_booking()` are callable directly via `/rest/v1/rpc/...` by `anon`/`authenticated` | Warn | **Known, accepted for now** — see below. |
+| `is_main_admin()`, `is_staff()`, `current_user_role()`, `handle_new_auth_user()`, `prevent_self_role_escalation()`, `can_view_booking()` were callable directly via `/rest/v1/rpc/...` by `anon`/`authenticated` | Warn | **Fixed in migration 0008** — see §2.1. |
 
 ### Two different reasons a function shows up in the advisor's WARN list
 
@@ -23,13 +23,21 @@ Not every `SECURITY DEFINER`-callable-by-anon warning means the same thing. This
 1. **Intentionally public RPCs** — `validate_coupon`, `create_booking`, `get_slot_availability`, `track_booking`, `track_booking_timeline`, `update_booking_stage`. These are *meant* to be callable by anyone; the advisor can't tell that from a blanket heuristic. Each one does its own real authorization/validation internally (see BOOKING_IMPLEMENTATION.md §4/§6) — the WARN is a false positive against intent, not a gap.
 2. **Internal helpers, genuinely over-exposed** — `is_main_admin`, `is_staff`, `current_user_role`, `handle_new_auth_user`, `prevent_self_role_escalation`, `can_view_booking`. These exist only to be called from inside RLS policies/triggers. See below for why they're still accepted for now rather than fixed immediately.
 
-### Why the 6 internal-helper warnings are accepted, not silently ignored
+### 2.1 Fixed: internal helpers relocated to a `private` schema (migration 0008)
 
-These are `SECURITY DEFINER` helper/trigger functions meant to be called only from inside RLS policies and triggers, not directly by clients. The advisor's suggested fix — revoke `EXECUTE` from `anon`/`authenticated` — would **break every RLS policy that calls them**, because Postgres checks the querying role's `EXECUTE` privilege on a function even when that function is `SECURITY DEFINER`; revoking it blocks the policy evaluation itself, not just direct client calls.
+The advisor's suggested fix — revoke `EXECUTE` from `anon`/`authenticated` — would have **broken every RLS policy that calls them**, since Postgres checks the querying role's `EXECUTE` privilege on a function even when that function is `SECURITY DEFINER`. The actual fix applied: moved all 6 functions into a new `private` schema, which PostgREST never exposes as REST routes, while their Postgres-level `EXECUTE` grants (needed for RLS policies) stayed untouched.
 
-The correct fix is to relocate these functions to a schema PostgREST doesn't expose (e.g. `private`), while keeping their Postgres-level `EXECUTE` grant intact so RLS policies keep working. That touches roughly 20+ existing policy definitions across two migrations' worth of tables and deserves its own isolated, carefully-tested migration rather than being rushed in alongside catalog/auth/booking work. **Actual risk today is low**: `is_main_admin`/`is_staff`/`current_user_role`/`can_view_booking` only return a boolean fact about the *caller's own* access — calling them directly tells you nothing you couldn't already infer by attempting an action and seeing if it's rejected. `handle_new_auth_user`/`prevent_self_role_escalation` are trigger functions that reference the trigger-only `NEW`/`OLD` pseudo-records — calling them directly outside a real trigger context raises a runtime error rather than doing anything.
+This was safe to do without touching any of the ~27 existing RLS policies that reference these functions, because a policy's `USING`/`WITH CHECK` expression stores a reference to the function **by OID** (like a view or check constraint does), not by re-parsed name text — `ALTER FUNCTION ... SET SCHEMA` preserves the OID. Three functions whose own *body text* called these helpers by qualified name (`can_view_booking`, `prevent_self_role_escalation`, `update_booking_stage`) were recreated with `private.`-prefixed calls; everything else needed zero changes.
 
-**Follow-up migration required**: move all 6 into a `private` schema and repoint every referencing policy.
+**Verified after applying** — not assumed correct from the reasoning above:
+- `get_advisors` re-run: all 6 no longer appear in the WARN list at all.
+- Fresh signup still creates a `profiles` row correctly (`handle_new_auth_user`, now in `private`, still fires as a trigger).
+- Self-role-escalation attempt (`role` and implicitly `status`) still rejected (`prevent_self_role_escalation`).
+- A patient account's attempt to write to `packages` still silently affects 0 rows (`is_main_admin`-gated policy), confirmed by re-reading the row unchanged.
+- `can_view_booking`-gated visibility re-tested with a real `collection_agent` account across three states: booking they created (visible), unrelated booking (invisible), booking after being assigned (visible) — all correct.
+- `update_booking_stage` re-tested: rejected before assignment, succeeded after — confirming its internal `current_user_role()` call still resolves correctly from the new location.
+
+All test accounts/bookings used for this verification were deleted afterward.
 
 ## 3. Privilege-escalation protections (mirrors a bug the original app already found and fixed)
 
@@ -73,4 +81,6 @@ Read access:
 
 All test accounts and test bookings were deleted after verification — the live database holds only the real catalog seed data.
 
-**Designed but not yet exercised**: `validate_coupon()`'s expiry/usage-limit/min-amount branches (only the percent-discount happy path and the invalid-code path were exercised); the private-schema relocation for the 6 internal helper functions (§2).
+- **Internal-helper relocation (§2.1)**: moved to `private` schema, `get_advisors` re-verified clean, and every dependent code path (signup trigger, self-escalation guard, catalog write-gating, booking visibility, stage-update authorization) re-tested with real accounts afterward.
+
+**Designed but not yet exercised**: `validate_coupon()`'s expiry/usage-limit/min-amount branches (only the percent-discount happy path and the invalid-code path were exercised).
