@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reports | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+      <div class="admin-toolbar">
+        <div class="field" style="margin:0;"><label style="font-size:11px;">From</label><input type="date" id="fromDate" style="padding:8px;"></div>
+        <div class="field" style="margin:0;"><label style="font-size:11px;">To</label><input type="date" id="toDate" style="padding:8px;"></div>
+        <select id="statusFilter" class="admin-input" style="padding:9px 12px;border-radius:8px;border:1.5px solid var(--gray-200);font-size:13px;align-self:flex-end;">
+          <option value="all">All Statuses</option>
+          <option value="pending">Pending</option><option value="confirmed">Confirmed</option>
+          <option value="completed">Completed</option><option value="cancelled">Cancelled</option>
+        </select>
+        <select id="collectionFilter" class="admin-input" style="padding:9px 12px;border-radius:8px;border:1.5px solid var(--gray-200);font-size:13px;align-self:flex-end;">
+          <option value="all">All Collection Types</option>
+          <option value="home">Home Collection</option><option value="lab_visit">Walk-in at Lab</option>
+        </select>
+        <button type="button" class="btn btn-primary" id="applyBtn" style="align-self:flex-end;">Apply</button>
+        <button type="button" class="btn btn-outline" id="exportBtn" style="align-self:flex-end;margin-left:auto;"><i class="fas fa-file-csv"></i> Export CSV</button>
+      </div>
+
+      <div class="admin-kpi-grid" id="summaryRoot"></div>
+      <div class="admin-table-wrap"><div id="listRoot" style="overflow-x:auto;"></div></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { supabase } from '/assets/js/supabase-client.js';
+  import { showToast } from '/assets/js/admin-ui.js';
+
+  const session = await requireStaffSession();
+  if (session) {
+    mountAdminShell({ currentKey: 'reports', title: 'Reports', profile: session.profile });
+    // Default range spans 30 days back (recent history) through 30 days
+    // forward (upcoming scheduled bookings) — narrower than "only up to
+    // today", which would hide every not-yet-happened booking by default.
+    const from = new Date(); from.setDate(from.getDate() - 30);
+    const to = new Date(); to.setDate(to.getDate() + 30);
+    document.getElementById('fromDate').value = from.toISOString().split('T')[0];
+    document.getElementById('toDate').value = to.toISOString().split('T')[0];
+    load();
+  }
+
+  let rows = [];
+  document.getElementById('applyBtn').addEventListener('click', load);
+  document.getElementById('exportBtn').addEventListener('click', exportCsv);
+
+  async function load() {
+    const root = document.getElementById('listRoot');
+    root.innerHTML = `<div class="state-block"><div class="state-icon">⏳</div></div>`;
+    try {
+      let q = supabase.from('bookings')
+        .select('booking_code, patient_name, patient_phone, collection_type, scheduled_date, status, stage, final_amount, source, created_at, booking_items(name_snapshot), appointment_slots(label)')
+        .gte('scheduled_date', document.getElementById('fromDate').value)
+        .lte('scheduled_date', document.getElementById('toDate').value)
+        .order('scheduled_date', { ascending: false });
+      const status = document.getElementById('statusFilter').value;
+      const coll = document.getElementById('collectionFilter').value;
+      if (status !== 'all') q = q.eq('status', status);
+      if (coll !== 'all') q = q.eq('collection_type', coll);
+      const { data, error } = await q;
+      if (error) throw error;
+      rows = data || [];
+      renderSummary();
+      renderTable();
+    } catch (e) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-desc">${e.message}</div></div>`;
+    }
+  }
+
+  function renderSummary() {
+    const total = rows.length;
+    const revenue = rows.filter(r => r.status !== 'cancelled' && r.status !== 'failed').reduce((s, r) => s + Number(r.final_amount), 0);
+    const home = rows.filter(r => r.collection_type === 'home').length;
+    const completed = rows.filter(r => r.status === 'completed').length;
+    document.getElementById('summaryRoot').innerHTML = [
+      ['Bookings in Range', total], ['Booking Value', '₹' + revenue.toLocaleString('en-IN')],
+      ['Home Collection', home], ['Completed', completed],
+    ].map(([l, v]) => `<div class="admin-kpi-card"><div class="admin-kpi-val">${v}</div><div class="admin-kpi-label">${l}</div></div>`).join('');
+  }
+
+  function renderTable() {
+    const root = document.getElementById('listRoot');
+    if (!rows.length) { root.innerHTML = `<div class="state-block"><div class="state-icon">📄</div><div class="state-title">No bookings in this range</div></div>`; return; }
+    root.innerHTML = `<table class="admin-table"><thead><tr><th>Code</th><th>Patient</th><th>Item</th><th>Date</th><th>Collection</th><th>Source</th><th>Amount</th><th>Status</th></tr></thead><tbody>
+      ${rows.map(r => `<tr>
+        <td data-label="Code">${r.booking_code}</td>
+        <td data-label="Patient">${r.patient_name}</td>
+        <td data-label="Item">${r.booking_items?.[0]?.name_snapshot || '—'}</td>
+        <td data-label="Date">${new Date(r.scheduled_date).toLocaleDateString('en-IN')}</td>
+        <td data-label="Collection">${r.collection_type === 'home' ? 'Home' : 'Walk-in'}</td>
+        <td data-label="Source">${r.source}</td>
+        <td data-label="Amount">₹${Number(r.final_amount).toLocaleString('en-IN')}</td>
+        <td data-label="Status"><span class="badge badge-blue">${r.status}</span></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }
+
+  function exportCsv() {
+    if (!rows.length) { showToast('Nothing to export for this range.', 'error'); return; }
+    const headers = ['Booking Code', 'Patient', 'Phone', 'Item', 'Date', 'Slot', 'Collection', 'Source', 'Amount', 'Status', 'Stage', 'Created At'];
+    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [headers.join(',')];
+    rows.forEach(r => {
+      lines.push([
+        r.booking_code, r.patient_name, r.patient_phone, r.booking_items?.[0]?.name_snapshot || '',
+        r.scheduled_date, r.appointment_slots?.label || '', r.collection_type, r.source,
+        r.final_amount, r.status, r.stage, r.created_at,
+      ].map(escape).join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `mpd-bookings-report-${document.getElementById('fromDate').value}-to-${document.getElementById('toDate').value}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${rows.length} bookings`, 'success');
+  }
+</script>
+</html>

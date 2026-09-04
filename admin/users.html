@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Users | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+      <div class="admin-toolbar">
+        <div class="catalog-search" style="max-width:300px;"><i class="fas fa-search" style="color:var(--text-muted);"></i><input type="search" id="searchInput" placeholder="Name, email, or phone…"></div>
+        <span class="admin-empty-hint" id="countHint" style="margin-left:auto;"></span>
+      </div>
+      <div class="admin-table-wrap"><div id="listRoot" style="overflow-x:auto;"></div></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { supabase } from '/assets/js/supabase-client.js';
+
+  const session = await requireStaffSession();
+  if (session) {
+    mountAdminShell({ currentKey: 'users', title: 'Users', profile: session.profile });
+    if (session.role !== 'main_admin') {
+      // profiles RLS gives sub_admin visibility only into their OWN
+      // team (collection agents reporting to them) — not patients —
+      // so there is genuinely nothing to show here for that role.
+      document.querySelector('.admin-content').innerHTML = `<div class="state-block"><div class="state-icon">🔒</div><div class="state-title">Main Admin only</div><div class="state-desc">Patient accounts are only visible to Main Admin under the current data model.</div></div>`;
+    } else {
+      load();
+    }
+  }
+
+  let allUsers = [];
+  async function load() {
+    const root = document.getElementById('listRoot');
+    root.innerHTML = `<div class="state-block"><div class="state-icon">⏳</div></div>`;
+    try {
+      const { data, error } = await supabase.from('profiles').select('id, full_name, email, phone, status, created_at, last_login').eq('role', 'patient').order('created_at', { ascending: false });
+      if (error) throw error;
+      allUsers = data || [];
+      document.getElementById('countHint').textContent = `${allUsers.length} patient${allUsers.length === 1 ? '' : 's'}`;
+      render();
+    } catch (e) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-desc">${e.message}</div></div>`;
+    }
+  }
+
+  function render() {
+    const q = document.getElementById('searchInput').value.trim().toLowerCase();
+    const items = q ? allUsers.filter(u => (u.full_name || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.phone || '').includes(q)) : allUsers;
+    const root = document.getElementById('listRoot');
+    if (!items.length) { root.innerHTML = `<div class="state-block"><div class="state-icon">👤</div><div class="state-title">No patients found</div></div>`; return; }
+    root.innerHTML = `<table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Joined</th><th>Last Login</th><th>Bookings</th></tr></thead><tbody>
+      ${items.map(u => `<tr>
+        <td data-label="Name">${u.full_name || '—'}</td>
+        <td data-label="Email">${u.email}</td>
+        <td data-label="Phone">${u.phone || '—'}</td>
+        <td data-label="Joined">${new Date(u.created_at).toLocaleDateString('en-IN')}</td>
+        <td data-label="Last Login">${u.last_login ? new Date(u.last_login).toLocaleDateString('en-IN') : 'Never'}</td>
+        <td data-label="Bookings">${u.phone ? `<a href="/admin/bookings.html?q=${encodeURIComponent(u.phone)}" style="font-size:12px;">View →</a>` : '<span class="admin-empty-hint">No phone on file</span>'}</td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }
+  document.getElementById('searchInput').addEventListener('input', render);
+</script>
+</html>

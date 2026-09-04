@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytics | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+<style>
+  .an-card { background: var(--card-bg); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 20px; margin-bottom: 16px; }
+  .an-card h3 { font-size: 14px; margin-bottom: 14px; }
+  .an-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12.5px; }
+  .an-bar-label { width: 150px; flex-shrink: 0; color: var(--text-muted); }
+  .an-bar-track { flex: 1; background: var(--gray-100); border-radius: 6px; height: 18px; overflow: hidden; }
+  .an-bar-fill { height: 100%; background: var(--blue); border-radius: 6px; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; color: #fff; font-size: 10.5px; font-weight: 700; }
+  .an-grid-2 { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 800px) { .an-grid-2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+      <div id="root"><div class="state-block"><div class="state-icon">⏳</div></div></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { supabase } from '/assets/js/supabase-client.js';
+  import { fetchWorkload } from '/assets/js/services/team.js';
+
+  const session = await requireStaffSession();
+  if (session) {
+    mountAdminShell({ currentKey: 'analytics', title: 'Analytics', profile: session.profile });
+    load();
+  }
+
+  function bar(label, value, max, extra) {
+    const pct = max > 0 ? Math.max(4, Math.round((value / max) * 100)) : 0;
+    return `<div class="an-bar-row"><span class="an-bar-label">${label}</span><div class="an-bar-track"><div class="an-bar-fill" style="width:${pct}%;">${value}${extra || ''}</div></div></div>`;
+  }
+
+  async function load() {
+    const root = document.getElementById('root');
+    try {
+      const since = new Date(); since.setDate(since.getDate() - 30);
+      const { data: bookings, error } = await supabase
+        .from('bookings')
+        .select('created_at, scheduled_date, status, collection_type, final_amount, booking_items(name_snapshot)')
+        .gte('created_at', since.toISOString());
+      if (error) throw error;
+      const workload = await fetchWorkload().catch(() => []);
+
+      // Bookings by day (last 14 days, by scheduled_date)
+      const byDay = {};
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        byDay[d.toISOString().split('T')[0]] = 0;
+      }
+      bookings.forEach(b => { if (b.scheduled_date in byDay) byDay[b.scheduled_date]++; });
+      const maxDay = Math.max(1, ...Object.values(byDay));
+
+      // Bookings by status
+      const byStatus = {};
+      bookings.forEach(b => { byStatus[b.status] = (byStatus[b.status] || 0) + 1; });
+      const maxStatus = Math.max(1, ...Object.values(byStatus));
+
+      // Home vs walk-in
+      const home = bookings.filter(b => b.collection_type === 'home').length;
+      const walkin = bookings.length - home;
+
+      // Item popularity
+      const byItem = {};
+      bookings.forEach(b => {
+        const name = b.booking_items?.[0]?.name_snapshot || 'Unknown';
+        byItem[name] = (byItem[name] || 0) + 1;
+      });
+      const topItems = Object.entries(byItem).sort((a, b) => b[1] - a[1]).slice(0, 8);
+      const maxItem = Math.max(1, ...topItems.map(([, v]) => v));
+
+      // Booking value over time (weekly buckets, last 30 days)
+      const revenue = bookings.filter(b => !['cancelled', 'failed'].includes(b.status)).reduce((s, b) => s + Number(b.final_amount), 0);
+
+      const maxWorkload = Math.max(1, ...workload.map(w => w.today_assigned + w.upcoming_assigned));
+
+      root.innerHTML = `
+        <div class="admin-kpi-grid">
+          <div class="admin-kpi-card"><div class="admin-kpi-val">${bookings.length}</div><div class="admin-kpi-label">Bookings (30 days)</div></div>
+          <div class="admin-kpi-card"><div class="admin-kpi-val">₹${revenue.toLocaleString('en-IN')}</div><div class="admin-kpi-label">Booking Value (30 days)</div></div>
+          <div class="admin-kpi-card"><div class="admin-kpi-val">${home}</div><div class="admin-kpi-label">Home Collection</div></div>
+          <div class="admin-kpi-card"><div class="admin-kpi-val">${walkin}</div><div class="admin-kpi-label">Walk-in at Lab</div></div>
+        </div>
+
+        <div class="an-card"><h3>Bookings by Day (last 14 days, by scheduled date)</h3>
+          ${Object.entries(byDay).map(([d, v]) => bar(new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), v, maxDay)).join('')}
+        </div>
+
+        <div class="an-grid-2">
+          <div class="an-card"><h3>Bookings by Status</h3>
+            ${Object.entries(byStatus).length ? Object.entries(byStatus).map(([s, v]) => bar(s, v, maxStatus)).join('') : '<p style="font-size:12px;color:var(--text-muted);">No data yet.</p>'}
+          </div>
+          <div class="an-card"><h3>Most Booked Tests / Packages</h3>
+            ${topItems.length ? topItems.map(([n, v]) => bar(n, v, maxItem)).join('') : '<p style="font-size:12px;color:var(--text-muted);">No data yet.</p>'}
+          </div>
+        </div>
+
+        <div class="an-card"><h3>Collection Agent Workload</h3>
+          ${workload.length ? workload.map(w => bar(w.agent_name || w.agent_email, w.today_assigned + w.upcoming_assigned, maxWorkload, ` (${w.today_assigned} today)`)).join('') : '<p style="font-size:12px;color:var(--text-muted);">No collection agents yet.</p>'}
+        </div>`;
+    } catch (e) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-desc">${e.message}</div></div>`;
+    }
+  }
+</script>
+</html>

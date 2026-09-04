@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+      <div class="ab-card" style="background:var(--card-bg);border:1px solid var(--gray-200);border-radius:var(--radius-md);padding:20px;max-width:520px;">
+        <h3 style="font-size:14px;margin-bottom:14px;">Site Settings</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Every value here is live on the public site immediately — the homepage footer's phone number, for example, reads directly from <code>support_phone</code>.</p>
+        <div class="field"><label>Lab Name</label><input type="text" id="setLabName"></div>
+        <div class="field"><label>Support Phone</label><input type="tel" id="setSupportPhone"></div>
+        <div class="field"><label>Support Email</label><input type="email" id="setSupportEmail"></div>
+        <div id="settingsMsg" style="font-size:13px;margin-bottom:10px;"></div>
+        <button type="button" class="btn btn-primary btn-block" id="saveSettingsBtn">Save Settings</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { fetchSettings, updateSetting } from '/assets/js/services/settings.js';
+  import { showToast } from '/assets/js/admin-ui.js';
+
+  const session = await requireStaffSession();
+  if (session) {
+    mountAdminShell({ currentKey: 'settings', title: 'Settings', profile: session.profile });
+    if (session.role !== 'main_admin') {
+      document.querySelector('.admin-content').innerHTML = `<div class="state-block"><div class="state-icon">🔒</div><div class="state-title">Main Admin only</div></div>`;
+    } else {
+      load();
+    }
+  }
+
+  async function load() {
+    try {
+      const s = await fetchSettings();
+      document.getElementById('setLabName').value = s.lab_name || '';
+      document.getElementById('setSupportPhone').value = s.support_phone || '';
+      document.getElementById('setSupportEmail').value = s.support_email || '';
+    } catch (e) {
+      document.getElementById('settingsMsg').textContent = 'Could not load settings: ' + e.message;
+      document.getElementById('settingsMsg').style.color = 'var(--danger)';
+    }
+  }
+
+  document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+    const msgEl = document.getElementById('settingsMsg');
+    const btn = document.getElementById('saveSettingsBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await Promise.all([
+        updateSetting('lab_name', document.getElementById('setLabName').value.trim()),
+        updateSetting('support_phone', document.getElementById('setSupportPhone').value.trim()),
+        updateSetting('support_email', document.getElementById('setSupportEmail').value.trim()),
+      ]);
+      showToast('Settings saved', 'success');
+      msgEl.textContent = '';
+    } catch (e) {
+      msgEl.textContent = '❌ ' + e.message; msgEl.style.color = 'var(--danger)';
+      showToast(e.message, 'error');
+    }
+    btn.disabled = false; btn.textContent = 'Save Settings';
+  });
+</script>
+</html>
