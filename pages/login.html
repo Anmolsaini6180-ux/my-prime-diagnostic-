@@ -24,6 +24,9 @@
   .auth-msg { font-size: 13px; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; display: none; }
   .auth-msg.error { display: block; background: #fee2e2; color: #b91c1c; }
   .auth-msg.success { display: block; background: #dcfce7; color: #16a34a; }
+  .btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff; border: 1.5px solid var(--gray-200); color: var(--text); }
+  .btn-google:hover { background: var(--gray-50); }
+  .btn-google svg { flex-shrink: 0; }
 </style>
 </head>
 
@@ -35,13 +38,13 @@
       <h1 style="text-align:center;">Welcome to My Prime Diagnostic</h1>
       <p style="text-align:center;margin-bottom:24px;">Sign in to track bookings and view your reports.</p>
 
-      <div id="alreadyLoggedIn" class="card" style="display:none;text-align:center;">
-        <p>You're already signed in as <strong id="loggedInEmail"></strong>.</p>
-        <button class="btn btn-primary btn-block" id="goToBookingsBtn">Go to My Bookings</button>
-        <button class="btn btn-ghost btn-block" id="signOutBtn" style="margin-top:8px;">Sign Out</button>
-      </div>
-
       <div id="authForms">
+        <button type="button" class="btn btn-google btn-block btn-lg" id="googleBtn">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+          Continue with Google
+        </button>
+        <div class="auth-divider">OR</div>
+
         <div class="auth-tabs" role="tablist">
           <button class="auth-tab" role="tab" id="tabLogin" aria-selected="true">Login</button>
           <button class="auth-tab" role="tab" id="tabRegister" aria-selected="false">Register</button>
@@ -94,6 +97,7 @@
 <script type="module">
   import { mountChrome } from '/assets/js/shared-chrome.js';
   import { supabase } from '/assets/js/supabase-client.js';
+  import { getPostLoginDestination } from '/assets/js/post-login-redirect.js';
   mountChrome('login');
 
   const msgEl = document.getElementById('authMsg');
@@ -119,23 +123,42 @@
   tabLogin.addEventListener('click', () => selectTab('login'));
   tabRegister.addEventListener('click', () => selectTab('register'));
 
-  // Redirect target after login (e.g. came from a "Book a Test" flow)
+  // Redirect target after login (e.g. came from a "Book a Test" flow) —
+  // only ever used for a patient; a staff account always lands on
+  // /admin/dashboard.html instead, decided by getPostLoginDestination.
   const redirectTo = new URLSearchParams(location.search).get('redirect') || '/pages/my-bookings.html';
 
-  async function checkSession() {
-    const { data } = await supabase.auth.getSession();
-    if (data.session) {
-      document.getElementById('authForms').style.display = 'none';
-      document.getElementById('alreadyLoggedIn').style.display = 'block';
-      document.getElementById('loggedInEmail').textContent = data.session.user.email;
+  // Runs on every load — catches three cases with the same logic:
+  // (1) a session that already existed before this page loaded,
+  // (2) a fresh Google OAuth redirect landing back here (the Supabase
+  //     client's detectSessionInUrl already parsed it by the time this
+  //     runs), (3) nothing — no session, show the login forms as normal.
+  async function checkSessionAndRoute() {
+    const dest = await getPostLoginDestination(redirectTo);
+    if (dest) {
+      location.href = dest;
+      return true;
     }
+    return false;
   }
-  checkSession();
+  checkSessionAndRoute();
 
-  document.getElementById('goToBookingsBtn').addEventListener('click', () => location.href = '/pages/my-bookings.html');
-  document.getElementById('signOutBtn').addEventListener('click', async () => {
-    await supabase.auth.signOut();
-    location.reload();
+  // Belt-and-braces: also react the instant Supabase finishes parsing an
+  // OAuth callback, in case that happens a moment after the check above.
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_IN') checkSessionAndRoute();
+  });
+
+  document.getElementById('googleBtn').addEventListener('click', async () => {
+    clearMsg();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/pages/login.html' },
+    });
+    // A successful call navigates the whole page away to Google — this
+    // only returns if it failed to even START the redirect (e.g. the
+    // Google provider isn't enabled yet in the Supabase dashboard).
+    if (error) showMsg(error.message, 'error');
   });
 
   loginForm.addEventListener('submit', async (e) => {
@@ -149,7 +172,7 @@
     });
     btn.disabled = false; btn.textContent = 'Login';
     if (error) { showMsg(error.message, 'error'); return; }
-    location.href = redirectTo;
+    location.href = await getPostLoginDestination(redirectTo);
   });
 
   document.getElementById('forgotPasswordBtn').addEventListener('click', async () => {
