@@ -35,6 +35,12 @@ export async function submitBooking(draft) {
     p_coupon_code: draft.couponCode || null,
     p_payment_mode: draft.paymentMode,
     p_idempotency_key: draft.idempotencyKey,
+    // 'web' (default) for the public wizard; admin/add-booking.html and
+    // admin/whatsapp-booking.html pass 'admin'/'whatsapp' explicitly.
+    // Purely descriptive for reporting — create_booking() decides who
+    // actually owns the booking from the CALLER's own role server-side,
+    // never from this value. See migration 0010.
+    p_source: draft.source || 'web',
   });
   if (error) throw error;
   return data && data[0]; // { booking_id, booking_code, final_amount, status }

@@ -79,8 +79,23 @@
   import { requireDraftOrRedirect, saveDraft, renderSummaryRail, renderStepper } from '/assets/js/booking-draft.js';
   mountChrome('packages');
 
+  // Login-required gate — the single entry point every "Book Now"
+  // click funnels through (test-detail.html / package-detail.html
+  // both navigate straight here). A logged-out visitor is sent to
+  // Login with a `redirect` back to this exact page; the draft
+  // already saved in sessionStorage survives that round trip
+  // untouched (same tab, same origin), so nothing is lost or needs to
+  // travel through the URL. This is real UX only — the actual
+  // enforcement is server-side: create_booking() itself rejects any
+  // call with no auth.uid(), so this page being bypassed by a direct
+  // URL visit still can't result in a guest booking (see SECURITY.md).
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) {
+    location.href = '/pages/login.html?redirect=' + encodeURIComponent('/booking/patient-details.html');
+  }
+
   const draft = requireDraftOrRedirect();
-  if (draft) {
+  if (draft && sessionData.session) {
     renderStepper(document.getElementById('stepperRoot'), 'patient');
     renderSummaryRail(document.getElementById('summaryRoot'), draft);
 
