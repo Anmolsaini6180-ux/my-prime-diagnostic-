@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Add Booking | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/booking.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+<style>
+  .ab-card { background: var(--card-bg); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 20px; margin-bottom: 16px; max-width: 720px; }
+  .ab-card h3 { font-size: 14px; margin-bottom: 14px; }
+  .ab-row { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 640px) { .ab-row { grid-template-columns: 1fr; } }
+  .ab-item-pick { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1.5px solid var(--gray-200); border-radius: 8px; margin-bottom: 6px; cursor: pointer; font-size: 13px; }
+  .ab-item-pick.selected { border-color: var(--blue); background: var(--blue-pale); }
+  .ab-total-row { display: flex; justify-content: space-between; font-weight: 700; font-size: 16px; padding-top: 10px; border-top: 1px solid var(--gray-200); margin-top: 8px; }
+</style>
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+
+      <div class="ab-card">
+        <h3>1. Patient Details</h3>
+        <div class="ab-row">
+          <div class="field"><label>Full Name *</label><input type="text" id="pName" required></div>
+          <div class="field"><label>Mobile Number *</label><input type="tel" id="pPhone" maxlength="10" required></div>
+        </div>
+        <div class="ab-row">
+          <div class="field"><label>Email (optional)</label><input type="email" id="pEmail"></div>
+          <div class="field"><label>Date of Birth (optional)</label><input type="date" id="pDob"></div>
+        </div>
+        <div class="field" style="max-width:200px;">
+          <label>Gender (optional)</label>
+          <select id="pGender"><option value="">Prefer not to say</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select>
+        </div>
+      </div>
+
+      <div class="ab-card">
+        <h3>2. Test / Package Selection</h3>
+        <div class="field" style="max-width:260px;">
+          <label>Type</label>
+          <select id="itemTypeSelect"><option value="test">Individual Test</option><option value="package">Package</option></select>
+        </div>
+        <div id="itemListRoot"><div class="state-block"><div class="state-icon">⏳</div></div></div>
+      </div>
+
+      <div class="ab-card">
+        <h3>3. Collection Type</h3>
+        <div class="pay-toggle" style="display:grid;gap:10px;grid-template-columns:1fr 1fr;">
+          <div class="pay-card selected" id="colHome" style="border:2px solid var(--gray-200);border-radius:var(--radius-md);padding:14px;text-align:center;cursor:pointer;">🏠<br>Home Collection</div>
+          <div class="pay-card" id="colLab" style="border:2px solid var(--gray-200);border-radius:var(--radius-md);padding:14px;text-align:center;cursor:pointer;">🏥<br>Walk-in at Lab</div>
+        </div>
+        <div id="addressFields" style="margin-top:14px;">
+          <div class="field"><label>Address Line *</label><input type="text" id="addrLine"></div>
+          <div class="ab-row">
+            <div class="field"><label>City</label><input type="text" id="addrCity"></div>
+            <div class="field"><label>Pincode *</label><input type="text" id="addrPin" maxlength="6"></div>
+          </div>
+          <div class="field"><label>Landmark (optional)</label><input type="text" id="addrLandmark"></div>
+        </div>
+      </div>
+
+      <div class="ab-card">
+        <h3>4. Date &amp; Time</h3>
+        <div class="ab-row">
+          <div class="field"><label>Date *</label><input type="date" id="schedDate"></div>
+          <div class="field"><label>Time Slot *</label><select id="schedSlot"><option value="">Pick a date first</option></select></div>
+        </div>
+      </div>
+
+      <div class="ab-card">
+        <h3>5. Coupon (optional)</h3>
+        <div class="coupon-row" style="display:flex;gap:8px;">
+          <input type="text" id="couponInput" placeholder="Coupon code" style="flex:1;">
+          <button type="button" class="btn btn-outline" id="applyCouponBtn">Apply</button>
+        </div>
+        <div id="couponMsg" style="font-size:12px;margin-top:6px;"></div>
+      </div>
+
+      <div class="ab-card">
+        <h3>6. Review &amp; Confirm</h3>
+        <div class="review-row"><span>Subtotal</span><span id="revSubtotal">₹0</span></div>
+        <div class="review-row"><span>Coupon Discount</span><span id="revDiscount">−₹0</span></div>
+        <div class="ab-total-row"><span>Final Total</span><span id="revTotal">₹0</span></div>
+        <p style="font-size:11.5px;color:var(--text-muted);margin-top:8px;">No online payment gateway — this booking is recorded as Pay Later (cash at collection), matching every booking created through this system.</p>
+        <div id="submitMsg" style="font-size:13px;margin:10px 0;"></div>
+        <button type="button" class="btn btn-orange btn-block btn-lg" id="createBtn"><i class="fas fa-calendar-check"></i> Create Booking</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { fetchTests, fetchPackages } from '/assets/js/services/catalog.js';
+  import { fetchSlotAvailability, submitBooking } from '/assets/js/services/bookings.js';
+  import { supabase } from '/assets/js/supabase-client.js';
+  import { showToast } from '/assets/js/admin-ui.js';
+
+  const session = await requireStaffSession();
+  if (!session) { /* redirected */ }
+  else if (!['main_admin', 'sub_admin'].includes(session.role)) {
+    document.querySelector('.admin-content').innerHTML = `<div class="state-block"><div class="state-icon">🔒</div><div class="state-title">Not available for your role</div><div class="state-desc">Only Main Admin and Sub Admin can create bookings on behalf of a patient.</div></div>`;
+  } else {
+    mountAdminShell({ currentKey: 'add-booking', title: 'Add Booking', profile: session.profile });
+    init();
+  }
+
+  let allTests = [], allPackages = [];
+  let selected = null; // { itemType, itemId, itemName, itemPrice }
+  let collectionType = 'home';
+  let appliedDiscount = 0;
+  let appliedCouponCode = null;
+
+  async function init() {
+    try {
+      [allTests, allPackages] = await Promise.all([fetchTests(), fetchPackages()]);
+    } catch (e) {
+      showToast('Could not load catalogue: ' + e.message, 'error');
+    }
+    renderItemList();
+    document.getElementById('itemTypeSelect').addEventListener('change', renderItemList);
+
+    document.getElementById('colHome').addEventListener('click', () => setCollectionType('home'));
+    document.getElementById('colLab').addEventListener('click', () => setCollectionType('lab_visit'));
+
+    document.getElementById('schedDate').min = new Date().toISOString().split('T')[0];
+    document.getElementById('schedDate').addEventListener('change', loadSlots);
+
+    document.getElementById('applyCouponBtn').addEventListener('click', applyCoupon);
+    document.getElementById('createBtn').addEventListener('click', createBooking);
+  }
+
+  function setCollectionType(type) {
+    collectionType = type;
+    document.getElementById('colHome').classList.toggle('selected', type === 'home');
+    document.getElementById('colLab').classList.toggle('selected', type === 'lab_visit');
+    document.getElementById('addressFields').style.display = type === 'home' ? 'block' : 'none';
+  }
+  setCollectionType('home');
+
+  function renderItemList() {
+    const type = document.getElementById('itemTypeSelect').value;
+    const items = type === 'package' ? allPackages : allTests;
+    const root = document.getElementById('itemListRoot');
+    if (!items.length) { root.innerHTML = `<div class="state-block"><div class="state-icon">📭</div><div class="state-title">Nothing active in this category</div></div>`; return; }
+    root.innerHTML = items.map(it => `
+      <div class="ab-item-pick" data-id="${it.id}" data-name="${it.name}" data-price="${it.price}">
+        <span>${it.name}</span><span>₹${Number(it.price).toLocaleString('en-IN')}</span>
+      </div>`).join('');
+    root.querySelectorAll('.ab-item-pick').forEach(el => {
+      el.addEventListener('click', () => {
+        root.querySelectorAll('.ab-item-pick').forEach(x => x.classList.remove('selected'));
+        el.classList.add('selected');
+        selected = { itemType: type, itemId: el.dataset.id, itemName: el.dataset.name, itemPrice: Number(el.dataset.price) };
+        appliedDiscount = 0; appliedCouponCode = null;
+        document.getElementById('couponMsg').textContent = '';
+        updateTotals();
+      });
+    });
+  }
+
+  async function loadSlots() {
+    const date = document.getElementById('schedDate').value;
+    const sel = document.getElementById('schedSlot');
+    if (!date) return;
+    sel.innerHTML = '<option>Loading…</option>';
+    try {
+      const slots = await fetchSlotAvailability(date);
+      sel.innerHTML = slots.map(s => `<option value="${s.slot_id}" ${!s.is_available ? 'disabled' : ''}>${s.label}${!s.is_available ? ' — Full' : ''}</option>`).join('');
+    } catch (e) {
+      sel.innerHTML = '<option>Could not load slots</option>';
+    }
+  }
+
+  async function applyCoupon() {
+    const code = document.getElementById('couponInput').value.trim();
+    const msgEl = document.getElementById('couponMsg');
+    if (!code || !selected) { msgEl.textContent = 'Select a test/package first.'; msgEl.style.color = 'var(--danger)'; return; }
+    msgEl.textContent = 'Checking…'; msgEl.style.color = 'var(--text-muted)';
+    try {
+      const { data, error } = await supabase.rpc('validate_coupon', { coupon_code: code, order_amount: selected.itemPrice });
+      const result = data && data[0];
+      if (error || !result || !result.valid) {
+        msgEl.textContent = (result && result.message) || error?.message || 'Invalid coupon.';
+        msgEl.style.color = 'var(--danger)';
+        appliedDiscount = 0; appliedCouponCode = null;
+      } else {
+        appliedDiscount = Number(result.discount); appliedCouponCode = code;
+        msgEl.textContent = `✅ ${result.message}`; msgEl.style.color = 'var(--success)';
+      }
+      updateTotals();
+    } catch (e) {
+      msgEl.textContent = 'Could not check coupon.'; msgEl.style.color = 'var(--danger)';
+    }
+  }
+
+  function updateTotals() {
+    const subtotal = selected ? selected.itemPrice : 0;
+    const total = Math.max(subtotal - appliedDiscount, 0);
+    document.getElementById('revSubtotal').textContent = '₹' + subtotal.toLocaleString('en-IN');
+    document.getElementById('revDiscount').textContent = '−₹' + appliedDiscount.toLocaleString('en-IN');
+    document.getElementById('revTotal').textContent = '₹' + total.toLocaleString('en-IN');
+  }
+
+  let submitting = false;
+  async function createBooking() {
+    const msgEl = document.getElementById('submitMsg');
+    msgEl.textContent = ''; msgEl.style.color = '';
+
+    const name = document.getElementById('pName').value.trim();
+    const phone = document.getElementById('pPhone').value.trim();
+    if (!/^[a-zA-Z\s]{2,}$/.test(name)) { msgEl.textContent = 'Enter a valid patient name.'; msgEl.style.color = 'var(--danger)'; return; }
+    if (!/^[6-9]\d{9}$/.test(phone)) { msgEl.textContent = 'Enter a valid 10-digit mobile number.'; msgEl.style.color = 'var(--danger)'; return; }
+    if (!selected) { msgEl.textContent = 'Select a test or package.'; msgEl.style.color = 'var(--danger)'; return; }
+    const date = document.getElementById('schedDate').value;
+    const slotId = document.getElementById('schedSlot').value;
+    if (!date || !slotId) { msgEl.textContent = 'Choose a date and time slot.'; msgEl.style.color = 'var(--danger)'; return; }
+    if (collectionType === 'home') {
+      const line = document.getElementById('addrLine').value.trim();
+      const pin = document.getElementById('addrPin').value.trim();
+      if (!line || !/^\d{6}$/.test(pin)) { msgEl.textContent = 'Enter a complete address with a valid 6-digit pincode.'; msgEl.style.color = 'var(--danger)'; return; }
+    }
+
+    if (submitting) return;
+    submitting = true;
+    const btn = document.getElementById('createBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating…';
+
+    try {
+      const draft = {
+        itemType: selected.itemType, itemId: selected.itemId, itemName: selected.itemName, itemPrice: selected.itemPrice,
+        patientName: name, patientPhone: phone,
+        patientEmail: document.getElementById('pEmail').value.trim() || null,
+        patientDob: document.getElementById('pDob').value || null,
+        patientGender: document.getElementById('pGender').value || null,
+        collectionType,
+        address: collectionType === 'home' ? {
+          addressLine: document.getElementById('addrLine').value.trim(),
+          city: document.getElementById('addrCity').value.trim(),
+          pincode: document.getElementById('addrPin').value.trim(),
+          landmark: document.getElementById('addrLandmark').value.trim(),
+        } : null,
+        scheduledDate: date, slotId,
+        couponCode: appliedCouponCode,
+        paymentMode: 'offline',
+        idempotencyKey: crypto.randomUUID(),
+        source: 'admin', // reused create_booking RPC — server assigns creator_role='staff' from the caller's own session role, never from this hint (see migration 0010)
+      };
+      const result = await submitBooking(draft);
+      showToast(`Booking ${result.booking_code} created — ₹${Number(result.final_amount).toLocaleString('en-IN')}`, 'success');
+      msgEl.style.color = 'var(--success)';
+      msgEl.innerHTML = `✅ Booking <strong>${result.booking_code}</strong> created. <a href="/admin/bookings.html?code=${result.booking_code}">Open it</a> or <a href="javascript:location.reload()">create another</a>.`;
+      btn.innerHTML = '<i class="fas fa-check"></i> Created';
+    } catch (e) {
+      showToast(e.message || 'Could not create booking.', 'error');
+      msgEl.textContent = '❌ ' + (e.message || 'Could not create booking.');
+      msgEl.style.color = 'var(--danger)';
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-calendar-check"></i> Create Booking';
+      submitting = false;
+    }
+  }
+</script>
+</html>

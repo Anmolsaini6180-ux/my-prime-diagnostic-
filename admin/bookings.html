@@ -63,9 +63,9 @@
   import { STAGE_META } from '/assets/js/tracker-shared.js';
   import { initBookingDetailModal } from '/assets/js/admin-booking-detail-modal.js';
 
-  const openBookingDetailModal = initBookingDetailModal(() => load());
-
   const session = await requireStaffSession();
+  const openBookingDetailModal = initBookingDetailModal(() => load(), session?.role);
+
   if (session) {
     mountAdminShell({ currentKey: 'bookings', title: 'Bookings', profile: session.profile });
     load();
@@ -115,8 +115,16 @@
   document.getElementById('collectionFilter').addEventListener('change', load);
   function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
-  // Deep-link support: /admin/bookings.html?code=MPD-XXXXXX opens that booking directly.
-  const preselectCode = new URLSearchParams(location.search).get('code');
+  // Deep-link support: ?code=MPD-XXXXXX opens that booking directly;
+  // ?q=<term> (e.g. from admin/users.html's "View bookings" link)
+  // pre-fills the search box and re-runs the list for that patient.
+  const params = new URLSearchParams(location.search);
+  const preselectCode = params.get('code');
+  const prefillQuery = params.get('q');
+  if (prefillQuery) {
+    document.getElementById('searchInput').value = prefillQuery;
+    load();
+  }
   if (preselectCode) {
     fetchBookings({ search: preselectCode }).then(rows => {
       const match = rows.find(r => r.booking_code === preselectCode);

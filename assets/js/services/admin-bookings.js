@@ -15,19 +15,24 @@ const LIST_SELECT = `
   appointment_slots ( label )
 `;
 
+/** Single RLS-respecting RPC (migration 0010) replaces the old 8
+ * separate count queries — one round trip, and a role's numbers are
+ * automatically scoped to whatever bookings that role's own RLS
+ * policies let it see (main_admin: everything; sub_admin: their team;
+ * collection_agent: their own bookings). */
 export async function fetchDashboardCounts() {
-  const today = new Date().toISOString().split('T')[0];
-  const [{ count: total }, { count: todayCount }, { count: pending }, { count: confirmed }, { count: home }, { count: walkIn }, { count: completed }, { count: cancelled }] = await Promise.all([
-    supabase.from('bookings').select('id', { count: 'exact', head: true }),
-    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('scheduled_date', today),
-    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('status', 'confirmed'),
-    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('collection_type', 'home'),
-    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('collection_type', 'lab_visit'),
-    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('status', 'completed'),
-    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('status', 'cancelled'),
-  ]);
-  return { total, today: todayCount, pending, confirmed, home, walkIn, completed, cancelled };
+  const { data, error } = await supabase.rpc('admin_dashboard_stats');
+  if (error) throw error;
+  const r = data && data[0];
+  if (!r) return {};
+  return {
+    total: r.total_bookings, today: r.today_bookings, pending: r.pending_count, confirmed: r.confirmed_count,
+    sampleCollected: r.sample_collected_count, processing: r.processing_count,
+    completed: r.completed_count, cancelled: r.cancelled_count,
+    home: r.home_count, walkIn: r.walkin_count,
+    unassigned: r.unassigned_count, assigned: r.assigned_count,
+    revenue: r.total_revenue,
+  };
 }
 
 export async function fetchRecentBookings(limit = 8) {
@@ -87,5 +92,42 @@ export async function updateBookingStage(bookingId, newStage, note) {
   const { error } = await supabase.rpc('update_booking_stage', {
     p_booking_id: bookingId, p_new_stage: newStage, p_note: note || null,
   });
+  if (error) throw error;
+}
+
+/** Active collection agents visible to the caller (RLS: main_admin sees
+ * all, sub_admin sees their own team via profiles_sub_admin_select_team). */
+export async function fetchCollectionAgents() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .eq('role', 'collection_agent')
+    .eq('status', 'active')
+    .order('full_name');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function assignCollectionAgent(bookingId, agentId) {
+  const { error } = await supabase.rpc('assign_collection_agent', { p_booking_id: bookingId, p_agent_id: agentId });
+  if (error) throw error;
+}
+
+/** Partial update — any field omitted (undefined) is left out of the
+ * call entirely so admin_update_booking's own coalesce(param, current)
+ * logic keeps the existing value; never sends a field as null unless
+ * the caller explicitly means "no change needed for this one". */
+export async function adminUpdateBooking(bookingId, fields) {
+  const payload = { p_booking_id: bookingId };
+  const map = {
+    patientName: 'p_patient_name', patientPhone: 'p_patient_phone', patientEmail: 'p_patient_email',
+    patientDob: 'p_patient_dob', patientGender: 'p_patient_gender', collectionType: 'p_collection_type',
+    address: 'p_address', scheduledDate: 'p_scheduled_date', slotId: 'p_slot_id',
+    specialNotes: 'p_special_notes', status: 'p_status', assignedAgentId: 'p_assigned_agent_id', note: 'p_note',
+  };
+  Object.entries(fields).forEach(([k, v]) => {
+    if (v !== undefined && map[k]) payload[map[k]] = v;
+  });
+  const { error } = await supabase.rpc('admin_update_booking', payload);
   if (error) throw error;
 }

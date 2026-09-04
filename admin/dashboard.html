@@ -53,8 +53,11 @@
       const tiles = [
         ['Total Bookings', c.total], ["Today's Bookings", c.today],
         ['Pending', c.pending], ['Confirmed', c.confirmed],
-        ['Home Collection', c.home], ['Walk-in at Lab', c.walkIn],
+        ['Sample Collected', c.sampleCollected], ['Processing', c.processing],
         ['Completed', c.completed], ['Cancelled', c.cancelled],
+        ['Home Collection', c.home], ['Walk-in at Lab', c.walkIn],
+        ['Unassigned', c.unassigned], ['Assigned', c.assigned],
+        ['Booking Value', '₹' + Number(c.revenue || 0).toLocaleString('en-IN')],
       ];
       root.innerHTML = tiles.map(([label, val]) => `
         <div class="admin-kpi-card">

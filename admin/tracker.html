@@ -50,11 +50,11 @@
   import { STAGE_FLOW, STAGE_META } from '/assets/js/tracker-shared.js';
   import { initBookingDetailModal } from '/assets/js/admin-booking-detail-modal.js';
 
-  const openBookingDetailModal = initBookingDetailModal(() => loadAll());
   let currentView = 'today';
   let allBookings = [];
 
   const session = await requireStaffSession();
+  const openBookingDetailModal = initBookingDetailModal(() => loadAll(), session?.role);
   if (session) {
     mountAdminShell({ currentKey: 'tracker', title: 'Booking Tracker', profile: session.profile });
     loadAll();
