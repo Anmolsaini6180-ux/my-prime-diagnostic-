@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bookings | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/booking.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+      <div class="admin-toolbar">
+        <div class="catalog-search" style="max-width:280px;">
+          <i class="fas fa-search" style="color:var(--text-muted);"></i>
+          <input type="search" id="searchInput" placeholder="Name, phone, or booking code…">
+        </div>
+        <select id="statusFilter" class="admin-input" style="padding:9px 12px;border-radius:8px;border:1.5px solid var(--gray-200);font-size:13px;">
+          <option value="all">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="failed">Failed</option>
+        </select>
+        <select id="collectionFilter" class="admin-input" style="padding:9px 12px;border-radius:8px;border:1.5px solid var(--gray-200);font-size:13px;">
+          <option value="all">All Collection Types</option>
+          <option value="home">Home Collection</option>
+          <option value="lab_visit">Walk-in at Lab</option>
+        </select>
+      </div>
+
+      <div class="admin-table-wrap">
+        <div id="listRoot" style="overflow-x:auto;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Booking Detail Modal -->
+<div class="admin-modal-backdrop" id="detailModalBackdrop">
+  <div class="admin-modal">
+    <button class="admin-modal-close" id="detailModalClose">&times;</button>
+    <div id="detailModalBody"></div>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { fetchBookings } from '/assets/js/services/admin-bookings.js';
+  import { STAGE_META } from '/assets/js/tracker-shared.js';
+  import { initBookingDetailModal } from '/assets/js/admin-booking-detail-modal.js';
+
+  const openBookingDetailModal = initBookingDetailModal(() => load());
+
+  const session = await requireStaffSession();
+  if (session) {
+    mountAdminShell({ currentKey: 'bookings', title: 'Bookings', profile: session.profile });
+    load();
+  }
+
+  function fmtDate(d) { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); }
+
+  async function load() {
+    const root = document.getElementById('listRoot');
+    root.innerHTML = `<div class="state-block"><div class="state-icon">⏳</div><div class="state-title">Loading bookings…</div></div>`;
+    try {
+      const bookings = await fetchBookings({
+        search: document.getElementById('searchInput').value.trim(),
+        status: document.getElementById('statusFilter').value,
+        collectionType: document.getElementById('collectionFilter').value,
+      });
+      if (!bookings.length) {
+        root.innerHTML = `<div class="state-block"><div class="state-icon">📅</div><div class="state-title">No bookings match</div></div>`;
+        return;
+      }
+      root.innerHTML = `<table class="admin-table"><thead><tr><th>Code</th><th>Patient</th><th>Item</th><th>Date &amp; Slot</th><th>Collection</th><th>Amount</th><th>Status</th><th>Stage</th></tr></thead><tbody>
+        ${bookings.map(b => {
+          const meta = STAGE_META[b.stage] || STAGE_META.booked;
+          return `
+          <tr data-id="${b.id}" class="booking-row-click" style="cursor:pointer;">
+            <td data-label="Code"><strong>${b.booking_code}</strong></td>
+            <td data-label="Patient">${b.patient_name}<br><span style="color:var(--text-muted);font-size:11px;">${b.patient_phone}</span></td>
+            <td data-label="Item">${b.booking_items?.[0]?.name_snapshot || '—'}</td>
+            <td data-label="Date">${fmtDate(b.scheduled_date)}<br><span style="color:var(--text-muted);font-size:11px;">${b.appointment_slots?.label || ''}</span></td>
+            <td data-label="Collection">${b.collection_type === 'home' ? '🏠 Home' : '🏥 Walk-in'}</td>
+            <td data-label="Amount">₹${Number(b.final_amount).toLocaleString('en-IN')}</td>
+            <td data-label="Status"><span class="badge badge-blue">${b.status}</span></td>
+            <td data-label="Stage"><span class="badge" style="background:${meta.color}22;color:${meta.color};">${meta.icon} ${meta.adminLabel}</span></td>
+          </tr>`;
+        }).join('')}
+      </tbody></table>`;
+      root.querySelectorAll('.booking-row-click').forEach(row => {
+        row.addEventListener('click', () => openBookingDetailModal(row.dataset.id));
+      });
+    } catch (e) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-title">Couldn't load bookings</div><div class="state-desc">${e.message}</div></div>`;
+    }
+  }
+
+  document.getElementById('searchInput').addEventListener('input', debounce(load, 350));
+  document.getElementById('statusFilter').addEventListener('change', load);
+  document.getElementById('collectionFilter').addEventListener('change', load);
+  function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+  // Deep-link support: /admin/bookings.html?code=MPD-XXXXXX opens that booking directly.
+  const preselectCode = new URLSearchParams(location.search).get('code');
+  if (preselectCode) {
+    fetchBookings({ search: preselectCode }).then(rows => {
+      const match = rows.find(r => r.booking_code === preselectCode);
+      if (match) openBookingDetailModal(match.id);
+    });
+  }
+</script>
+</html>

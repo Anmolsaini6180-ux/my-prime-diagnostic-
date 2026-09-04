@@ -4,7 +4,9 @@ A NABL-certified diagnostic lab's public website — plain HTML/CSS/JS (no build
 
 ## Status
 
-This is an active, in-progress rebuild. **Public catalog browsing, patient auth, the full multi-step booking wizard, the public tracker, and Realtime status updates are real, live, and tested end-to-end against Supabase** — see [BOOKING_IMPLEMENTATION.md](BOOKING_IMPLEMENTATION.md) for exactly what was verified. Admin migration (moving staff-facing tools off `index-1.html`) is the next phase. Nothing in this repo pretends to be finished when it isn't.
+This is an active, in-progress rebuild. **Public catalog browsing, patient auth, the full multi-step booking wizard, the public tracker, and Realtime status updates are real, live, and tested end-to-end against Supabase.** **A real admin panel now exists too** (`admin/`) — staff login with RBAC enforcement, a Dashboard with real KPIs, and full Bookings/Booking Tracker management wired to the same Supabase backend — see [BOOKING_IMPLEMENTATION.md](BOOKING_IMPLEMENTATION.md) and [ADMIN_MIGRATION_MAP.md](ADMIN_MIGRATION_MAP.md) for exactly what's verified vs. still pending (most admin modules — Tests/Packages/Coupons/Staff/Reports/Cash Flow/Settings — are not built yet). **Firebase and Supabase are currently two separate, non-synced systems** — see [MIGRATION_STATUS.md](MIGRATION_STATUS.md). Nothing in this repo pretends to be finished when it isn't.
+
+**Branding note**: the real My Prime Diagnostic logo has been shared but not yet received as a file (see MIGRATION_STATUS.md / the latest session notes) — the site currently uses a placeholder 🏥 emoji mark everywhere a real logo asset belongs. Design tokens (`assets/css/tokens.css`) already closely match the logo's navy/orange palette (sourced from the original site's own CSS), pending exact pixel-level confirmation once the file is available.
 
 ## Running it locally
 
@@ -33,7 +35,13 @@ assets/js/
 supabase/
   migrations/                Every schema change, in order — see DATABASE.md
   seed/                      Real catalog + slot data ported from index-1.html (not synthetic)
-index-1.html                 Legacy Firebase-backed app — admin dashboard lives here for now
+admin/                       Staff panel: login, dashboard, bookings, tracker (real Supabase data + RLS-enforced)
+assets/css/admin.css         Admin shell (sidebar/topbar/tables/tracker board), same tokens as the public site
+assets/js/admin-guard.js     Real session+role check every admin page calls first (redirects non-staff, deactivated staff)
+assets/js/admin-shell.js     Shared admin sidebar/topbar, only links to modules that actually exist
+assets/js/admin-booking-detail-modal.js  Shared booking-detail-with-stage-update modal (used by Bookings and Tracker)
+assets/js/services/admin-bookings.js     Admin booking queries — relies entirely on RLS for role scoping, no client-side filtering duplicated
+index-1.html                 Legacy Firebase-backed app — everything not yet in admin/ still lives here
 ```
 
 ## Documentation index
@@ -49,6 +57,8 @@ index-1.html                 Legacy Firebase-backed app — admin dashboard live
 | [DATABASE.md](DATABASE.md) | The actual live Supabase schema |
 | [SECURITY.md](SECURITY.md) | RLS model, key handling, known issues and what's verified vs. not |
 | [SUPABASE_MIGRATION_PLAN.md](SUPABASE_MIGRATION_PLAN.md) | Firebase → Supabase migration plan (broader scope, still in progress) |
+| [ADMIN_MIGRATION_MAP.md](ADMIN_MIGRATION_MAP.md) | Every admin feature in `index-1.html`, and exactly which are/aren't migrated yet |
+| [MIGRATION_STATUS.md](MIGRATION_STATUS.md) | Which backend serves what right now, and what real cutover would require |
 
 ## Environment
 

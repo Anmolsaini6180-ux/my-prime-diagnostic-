@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Booking Tracker | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/booking.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+      <div class="admin-kpi-grid" id="kpiRoot"></div>
+
+      <div class="tracker-view-tabs" id="viewTabs">
+        <button class="tracker-view-tab" data-view="today" aria-pressed="true">Today</button>
+        <button class="tracker-view-tab" data-view="upcoming" aria-pressed="false">Upcoming</button>
+        <button class="tracker-view-tab" data-view="pipeline" aria-pressed="false">Pipeline</button>
+        <button class="tracker-view-tab" data-view="all" aria-pressed="false">All</button>
+        <button class="btn btn-ghost" id="refreshBtn" style="margin-left:auto;font-size:12.5px;padding:8px 14px;"><i class="fas fa-sync-alt"></i> Refresh</button>
+      </div>
+
+      <div id="viewRoot"></div>
+    </div>
+  </div>
+</div>
+
+<div class="admin-modal-backdrop" id="detailModalBackdrop">
+  <div class="admin-modal">
+    <button class="admin-modal-close" id="detailModalClose">&times;</button>
+    <div id="detailModalBody"></div>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { fetchTrackerBookings } from '/assets/js/services/admin-bookings.js';
+  import { STAGE_FLOW, STAGE_META } from '/assets/js/tracker-shared.js';
+  import { initBookingDetailModal } from '/assets/js/admin-booking-detail-modal.js';
+
+  const openBookingDetailModal = initBookingDetailModal(() => loadAll());
+  let currentView = 'today';
+  let allBookings = [];
+
+  const session = await requireStaffSession();
+  if (session) {
+    mountAdminShell({ currentKey: 'tracker', title: 'Booking Tracker', profile: session.profile });
+    loadAll();
+  }
+
+  document.querySelectorAll('.tracker-view-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentView = btn.dataset.view;
+      document.querySelectorAll('.tracker-view-tab').forEach(b => b.setAttribute('aria-pressed', b === btn));
+      render();
+    });
+  });
+  document.getElementById('refreshBtn').addEventListener('click', loadAll);
+
+  function today() { return new Date().toISOString().split('T')[0]; }
+  function fmtDate(d) { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); }
+
+  async function loadAll() {
+    const kpiRoot = document.getElementById('kpiRoot');
+    kpiRoot.innerHTML = Array.from({ length: 4 }).map(() => `<div class="admin-kpi-card"><div class="skeleton-line" style="height:24px;"></div></div>`).join('');
+    try {
+      allBookings = await fetchTrackerBookings();
+      renderKpis();
+      render();
+    } catch (e) {
+      kpiRoot.innerHTML = '';
+      document.getElementById('viewRoot').innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-title">Couldn't load tracker data</div><div class="state-desc">${e.message}</div></div>`;
+    }
+  }
+
+  function renderKpis() {
+    const t = today();
+    const todayN = allBookings.filter(b => b.scheduled_date === t).length;
+    const upcomingN = allBookings.filter(b => b.scheduled_date > t).length;
+    const overdueN = allBookings.filter(b => b.scheduled_date < t && !['completed'].includes(b.status)).length;
+    const readyN = allBookings.filter(b => b.stage === 'report_ready').length;
+    document.getElementById('kpiRoot').innerHTML = [
+      ['Today', todayN], ['Upcoming', upcomingN], ['Overdue', overdueN], ['Report Ready', readyN],
+    ].map(([label, val]) => `<div class="admin-kpi-card"><div class="admin-kpi-val">${val}</div><div class="admin-kpi-label">${label}</div></div>`).join('');
+  }
+
+  function card(b) {
+    const meta = STAGE_META[b.stage] || STAGE_META.booked;
+    return `
+      <div class="tracker-card" data-id="${b.id}">
+        <div class="tracker-card-name">${b.patient_name}</div>
+        <div class="tracker-card-meta">${b.booking_items?.[0]?.name_snapshot || ''}</div>
+        <div class="tracker-card-meta">${fmtDate(b.scheduled_date)} · ${b.appointment_slots?.label || ''}</div>
+        <div style="margin-top:6px;"><span class="badge" style="background:${meta.color}22;color:${meta.color};">${meta.icon} ${meta.adminLabel}</span></div>
+      </div>`;
+  }
+
+  function attachCardClicks(root) {
+    root.querySelectorAll('.tracker-card').forEach(el => {
+      el.addEventListener('click', () => openBookingDetailModal(el.dataset.id));
+    });
+  }
+
+  function render() {
+    const root = document.getElementById('viewRoot');
+    const t = today();
+
+    if (!allBookings.length) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">📅</div><div class="state-title">No active bookings</div></div>`;
+      return;
+    }
+
+    if (currentView === 'pipeline') {
+      root.innerHTML = `<div class="tracker-board">${STAGE_FLOW.map(stage => {
+        const meta = STAGE_META[stage];
+        const col = allBookings.filter(b => b.stage === stage);
+        return `<div class="tracker-col">
+          <div class="tracker-col-head" style="color:${meta.color};"><span>${meta.icon} ${meta.adminLabel}</span><span>${col.length}</span></div>
+          ${col.length ? col.map(card).join('') : '<p style="font-size:11px;color:var(--text-muted);text-align:center;padding:16px 0;">Empty</p>'}
+        </div>`;
+      }).join('')}</div>`;
+      attachCardClicks(root);
+      return;
+    }
+
+    let list;
+    if (currentView === 'today') list = allBookings.filter(b => b.scheduled_date === t);
+    else if (currentView === 'upcoming') list = allBookings.filter(b => b.scheduled_date > t);
+    else list = allBookings;
+
+    if (!list.length) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">📅</div><div class="state-title">Nothing here</div></div>`;
+      return;
+    }
+    root.innerHTML = `<div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));">${list.map(card).join('')}</div>`;
+    attachCardClicks(root);
+  }
+</script>
+</html>

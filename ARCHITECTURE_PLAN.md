@@ -1,6 +1,8 @@
 # ARCHITECTURE_PLAN.md — Recommended Target Architecture
 
-This is a **recommendation for approval**, not a description of work already done. Nothing in this document has been implemented yet. See [AUDIT.md](AUDIT.md) for the current-state facts this plan is based on.
+> **Status: this plan has since been substantially implemented.** The public site (§4), the booking wizard, and now a real `admin/` panel (Bookings + Tracker + Dashboard, RLS-enforced) are live against Supabase — see [README.md](README.md), [BOOKING_IMPLEMENTATION.md](BOOKING_IMPLEMENTATION.md), and [ADMIN_MIGRATION_MAP.md](ADMIN_MIGRATION_MAP.md) for current, verified status. §8's "minimal-touch, leave admin in index-1.html for Phase 1" recommendation was intentionally revisited once the admin migration itself became the active phase — the sections below are kept as the original recommendation/rationale, not a stale one to ignore.
+
+This was originally written as a **recommendation for approval**, not a description of work already done, based on the current-state facts in [AUDIT.md](AUDIT.md).
 
 ---
 

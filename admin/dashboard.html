@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+      <div id="kpiRoot" class="admin-kpi-grid"></div>
+
+      <div class="admin-table-wrap" style="padding:18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <h3 style="margin:0;font-size:15px;">Recent Bookings</h3>
+          <a href="/admin/bookings.html" style="font-size:12.5px;font-weight:600;color:var(--blue);">View All →</a>
+        </div>
+        <div id="recentRoot"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { fetchDashboardCounts, fetchRecentBookings } from '/assets/js/services/admin-bookings.js';
+
+  const session = await requireStaffSession();
+  if (session) {
+    mountAdminShell({ currentKey: 'dashboard', title: 'Dashboard', profile: session.profile });
+    loadKpis();
+    loadRecent();
+  }
+
+  async function loadKpis() {
+    const root = document.getElementById('kpiRoot');
+    root.innerHTML = Array.from({ length: 4 }).map(() => `<div class="admin-kpi-card"><div class="skeleton-line" style="width:40%;height:26px;"></div><div class="skeleton-line" style="width:70%;"></div></div>`).join('');
+    try {
+      const c = await fetchDashboardCounts();
+      const tiles = [
+        ['Total Bookings', c.total], ["Today's Bookings", c.today],
+        ['Pending', c.pending], ['Confirmed', c.confirmed],
+        ['Home Collection', c.home], ['Walk-in at Lab', c.walkIn],
+        ['Completed', c.completed], ['Cancelled', c.cancelled],
+      ];
+      root.innerHTML = tiles.map(([label, val]) => `
+        <div class="admin-kpi-card">
+          <div class="admin-kpi-val">${val ?? 0}</div>
+          <div class="admin-kpi-label">${label}</div>
+        </div>`).join('');
+    } catch (e) {
+      root.innerHTML = `<div class="state-block" style="grid-column:1/-1;"><div class="state-icon">⚠️</div><div class="state-title">Couldn't load dashboard data</div><div class="state-desc">${e.message}</div></div>`;
+    }
+  }
+
+  async function loadRecent() {
+    const root = document.getElementById('recentRoot');
+    root.innerHTML = `<div class="state-block"><div class="state-icon">⏳</div><div class="state-title">Loading…</div></div>`;
+    try {
+      const bookings = await fetchRecentBookings(8);
+      if (!bookings.length) {
+        root.innerHTML = `<div class="state-block"><div class="state-icon">📅</div><div class="state-title">No bookings yet</div></div>`;
+        return;
+      }
+      root.innerHTML = `<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>Code</th><th>Patient</th><th>Item</th><th>Date</th><th>Collection</th><th>Status</th></tr></thead><tbody>
+        ${bookings.map(b => `
+          <tr onclick="location.href='/admin/bookings.html?code=${b.booking_code}'" style="cursor:pointer;">
+            <td data-label="Code"><strong>${b.booking_code}</strong></td>
+            <td data-label="Patient">${b.patient_name}</td>
+            <td data-label="Item">${b.booking_items?.[0]?.name_snapshot || '—'}</td>
+            <td data-label="Date">${new Date(b.scheduled_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+            <td data-label="Collection">${b.collection_type === 'home' ? '🏠 Home' : '🏥 Walk-in'}</td>
+            <td data-label="Status"><span class="badge badge-blue">${b.status}</span></td>
+          </tr>`).join('')}
+      </tbody></table></div>`;
+    } catch (e) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-title">Couldn't load recent bookings</div><div class="state-desc">${e.message}</div></div>`;
+    }
+  }
+</script>
+</html>

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Login | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<style>
+  body { background: var(--blue-dark); }
+  .admin-login-wrap { max-width: 380px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 20px; }
+  .admin-login-card { background: var(--card-bg); border-radius: var(--radius-lg); padding: 32px 28px; }
+  .admin-login-brand { text-align: center; margin-bottom: 24px; }
+  .admin-login-brand-icon { font-size: 32px; margin-bottom: 8px; }
+</style>
+</head>
+
+<div class="admin-login-wrap">
+  <div class="admin-login-card">
+    <div class="admin-login-brand">
+      <div class="admin-login-brand-icon">🏥</div>
+      <h1 style="font-size:18px;margin-bottom:2px;">My Prime Diagnostic</h1>
+      <p style="font-size:12.5px;margin:0;">Staff &amp; Admin Sign In</p>
+    </div>
+
+    <div id="deniedMsg" class="auth-msg error" style="display:none;">This account doesn't have staff access.</div>
+    <div id="errMsg" class="auth-msg error" style="display:none;"></div>
+
+    <form id="adminLoginForm">
+      <div class="field">
+        <label for="aEmail">Email</label>
+        <input type="email" id="aEmail" required>
+      </div>
+      <div class="field">
+        <label for="aPassword">Password</label>
+        <input type="password" id="aPassword" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block btn-lg" id="adminLoginBtn">Sign In</button>
+    </form>
+    <p style="text-align:center;font-size:11.5px;margin-top:18px;"><a href="/index.html">← Back to public site</a></p>
+  </div>
+</div>
+
+<script type="module">
+  import { supabase } from '/assets/js/supabase-client.js';
+
+  if (new URLSearchParams(location.search).get('denied')) {
+    document.getElementById('deniedMsg').style.display = 'block';
+  }
+
+  // If already a valid staff session, skip straight to the dashboard.
+  const { data } = await supabase.auth.getSession();
+  if (data.session) {
+    const { data: profile } = await supabase.from('profiles').select('role,status').eq('id', data.session.user.id).maybeSingle();
+    if (profile && ['main_admin','sub_admin','collection_agent'].includes(profile.role) && profile.status === 'active') {
+      location.href = '/admin/dashboard.html';
+    }
+  }
+
+  document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('errMsg');
+    errEl.style.display = 'none';
+    const btn = document.getElementById('adminLoginBtn');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({
+      email: document.getElementById('aEmail').value.trim(),
+      password: document.getElementById('aPassword').value,
+    });
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Sign In';
+      return;
+    }
+
+    const { data: profile } = await supabase.from('profiles').select('role,status').eq('id', signInData.user.id).maybeSingle();
+    if (!profile || !['main_admin','sub_admin','collection_agent'].includes(profile.role) || profile.status !== 'active') {
+      await supabase.auth.signOut();
+      errEl.textContent = "This account doesn't have staff access.";
+      errEl.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Sign In';
+      return;
+    }
+
+    location.href = '/admin/dashboard.html';
+  });
+</script>
+</html>
