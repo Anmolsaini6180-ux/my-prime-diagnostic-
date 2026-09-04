@@ -92,3 +92,27 @@
 .admin-modal-backdrop.open { display: flex; }
 .admin-modal { background: var(--card-bg); border-radius: var(--radius-lg); padding: 24px; max-width: 520px; width: 100%; max-height: 85vh; overflow-y: auto; }
 .admin-modal-close { float: right; background: none; border: none; font-size: 22px; color: var(--text-muted); cursor: pointer; }
+
+/* ---- Toasts (Section 33/43 — every real admin action confirms via one of these) ---- */
+.admin-toast-stack { position: fixed; bottom: 20px; right: 20px; z-index: 300; display: flex; flex-direction: column; gap: 8px; max-width: 340px; }
+.admin-toast { background: var(--text); color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 13px; box-shadow: var(--shadow-lg, 0 10px 30px rgba(0,0,0,0.2)); display: flex; align-items: center; gap: 8px; animation: adminToastIn 0.2s ease-out; }
+.admin-toast.success { background: #16a34a; }
+.admin-toast.error { background: #dc2626; }
+@keyframes adminToastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---- Confirm dialog (Section 33/43 — every destructive/irreversible action asks first) ---- */
+.admin-confirm-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); z-index: 299; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.admin-confirm-box { background: var(--card-bg); border-radius: var(--radius-lg); padding: 22px; max-width: 380px; width: 100%; text-align: center; }
+.admin-confirm-box p { font-size: 13.5px; margin: 10px 0 18px; }
+.admin-confirm-actions { display: flex; gap: 10px; }
+.admin-confirm-actions .btn { flex: 1; }
+
+/* ---- Small pieces reused across the new admin modules ---- */
+.admin-readonly-banner { background: var(--gray-50); border: 1px dashed var(--gray-200); border-radius: var(--radius-md); padding: 12px 16px; font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px; }
+.admin-toggle { position: relative; display: inline-block; width: 38px; height: 22px; flex-shrink: 0; }
+.admin-toggle input { opacity: 0; width: 0; height: 0; }
+.admin-toggle-slider { position: absolute; inset: 0; background: var(--gray-200); border-radius: 99px; transition: var(--transition); cursor: pointer; }
+.admin-toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: var(--transition); }
+.admin-toggle input:checked + .admin-toggle-slider { background: var(--success, #16a34a); }
+.admin-toggle input:checked + .admin-toggle-slider::before { transform: translateX(16px); }
+.admin-empty-hint { font-size: 12px; color: var(--text-muted); background: var(--gray-50); border-radius: 8px; padding: 3px 8px; }
