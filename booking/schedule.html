@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schedule | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/booking.css">
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <section class="section">
+    <div class="container wizard-wrap">
+      <div id="stepperRoot"></div>
+      <div id="summaryRoot"></div>
+
+      <div class="card wizard-card">
+        <h1 style="font-size:20px;">Date &amp; Time</h1>
+        <p style="font-size:13px;">Choose when you'd like your sample collected.</p>
+
+        <div class="field">
+          <label for="schedDate">Preferred Date *</label>
+          <input type="date" id="schedDate">
+        </div>
+
+        <div class="field">
+          <label>Available Time Slots *</label>
+          <div id="slotGrid" class="slot-grid"><div class="state-block" style="grid-column:1/-1;padding:24px;"><div class="state-icon">⏳</div><div class="state-title">Pick a date to see slots</div></div></div>
+          <div class="field-error" id="slotErr">Please select a time slot.</div>
+        </div>
+
+        <div class="wizard-nav">
+          <a href="/booking/collection.html" class="btn btn-ghost">Back</a>
+          <button type="button" class="btn btn-primary" id="scheduleNextBtn">Continue</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  import { requireDraftOrRedirect, saveDraft, renderSummaryRail, renderStepper } from '/assets/js/booking-draft.js';
+  import { fetchSlotAvailability } from '/assets/js/services/bookings.js';
+  mountChrome('packages');
+
+  const draft = requireDraftOrRedirect();
+  if (!draft) { /* already redirected */ }
+  else if (!draft.collectionType) {
+    location.href = '/booking/collection.html';
+  } else {
+    renderStepper(document.getElementById('stepperRoot'), 'schedule');
+    renderSummaryRail(document.getElementById('summaryRoot'), draft);
+  }
+
+  const dateInput = document.getElementById('schedDate');
+  const today = new Date();
+  const max = new Date(); max.setDate(max.getDate() + 30);
+  const toISO = (d) => d.toISOString().split('T')[0];
+  dateInput.min = toISO(today);
+  dateInput.max = toISO(max);
+  dateInput.value = draft?.scheduledDate || toISO(today);
+
+  let selectedSlot = null; // { slot_id, label }
+
+  async function loadSlots() {
+    const grid = document.getElementById('slotGrid');
+    grid.innerHTML = Array.from({ length: 6 }).map(() => '<div class="skeleton-line" style="height:44px;"></div>').join('');
+    try {
+      const slots = await fetchSlotAvailability(dateInput.value);
+      if (!slots.length) {
+        grid.innerHTML = `<div class="state-block" style="grid-column:1/-1;"><div class="state-icon">📅</div><div class="state-title">No slots configured for this date</div></div>`;
+        return;
+      }
+      grid.innerHTML = slots.map(s => `
+        <button type="button" class="slot-btn" data-slot-id="${s.slot_id}" data-slot-label="${s.label}" ${s.is_available ? '' : 'disabled'}>
+          ${s.label}${!s.is_available ? '<br><span style="font-size:9px;">Fully booked</span>' : ''}
+        </button>`).join('');
+      grid.querySelectorAll('.slot-btn:not(:disabled)').forEach(btn => {
+        btn.addEventListener('click', () => {
+          grid.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          selectedSlot = { slot_id: btn.dataset.slotId, label: btn.dataset.slotLabel };
+          document.getElementById('slotErr').classList.remove('show');
+        });
+        if (draft?.slotId === btn.dataset.slotId) {
+          btn.classList.add('selected');
+          selectedSlot = { slot_id: btn.dataset.slotId, label: btn.dataset.slotLabel };
+        }
+      });
+    } catch (e) {
+      grid.innerHTML = `<div class="state-block" style="grid-column:1/-1;"><div class="state-icon">⚠️</div><div class="state-title">Couldn't load slots</div><div class="state-desc">${e.message || 'Please try again.'}</div></div>`;
+    }
+  }
+
+  dateInput.addEventListener('change', () => { selectedSlot = null; loadSlots(); });
+  loadSlots();
+
+  document.getElementById('scheduleNextBtn').addEventListener('click', () => {
+    if (!dateInput.value || !selectedSlot) {
+      document.getElementById('slotErr').classList.add('show');
+      return;
+    }
+    saveDraft({ scheduledDate: dateInput.value, slotId: selectedSlot.slot_id, slotLabel: selectedSlot.label });
+    location.href = '/booking/review.html';
+  });
+</script>
+</html>

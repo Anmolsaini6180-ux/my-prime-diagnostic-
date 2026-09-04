@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Booking Confirmed | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/booking.css">
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <section class="section">
+    <div class="container wizard-wrap">
+      <div class="card wizard-card" id="confirmRoot">
+        <div class="state-block"><div class="state-icon">⏳</div><div class="state-title">Confirming your booking…</div></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  import { trackBooking } from '/assets/js/services/bookings.js';
+  mountChrome('packages');
+
+  const root = document.getElementById('confirmRoot');
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  // Phone comes from sessionStorage (set by review.html just before this
+  // redirect), never the URL — see the comment in review.html for why.
+  const phone = sessionStorage.getItem('mpd_last_booking_phone');
+
+  // This page NEVER assumes success from the URL alone — it re-reads
+  // the booking from Supabase (the source of truth) before showing
+  // anything. If that lookup fails, no "confirmed" state is shown.
+  async function load() {
+    if (!code) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-title">No booking to show</div><div class="state-desc">Start a new booking from Packages.</div><div style="margin-top:14px;"><a href="/pages/packages.html" class="btn btn-primary">Browse Packages</a></div></div>`;
+      return;
+    }
+    if (!phone) {
+      // A bookmarked/shared confirmation link, or the phone's
+      // sessionStorage entry expired — don't guess, ask them to verify
+      // ownership properly via the same code+phone check everyone else uses.
+      root.innerHTML = `<div class="state-block">
+        <div class="state-icon">🔒</div>
+        <div class="state-title">Verify this booking to view it</div>
+        <div class="state-desc">For your privacy, please confirm your booking on the Track Booking page.</div>
+        <div style="margin-top:14px;"><a href="/pages/track-booking.html?code=${encodeURIComponent(code)}" class="btn btn-primary">Track This Booking</a></div>
+      </div>`;
+      return;
+    }
+    try {
+      const booking = await trackBooking(code, phone);
+      if (!booking) {
+        root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-title">We couldn't verify this booking</div><div class="state-desc">If you just booked, please call us to confirm: <a href="tel:+917428456590">+91 74284 56590</a></div></div>`;
+        return;
+      }
+      renderConfirmed(booking);
+    } catch (e) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-title">Couldn't load your confirmation</div><div class="state-desc">${e.message || 'Please check your connection.'}</div></div>`;
+    }
+  }
+
+  function renderConfirmed(b) {
+    const dateStr = new Date(b.scheduled_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+    root.innerHTML = `
+      <div class="confirmation-check">✅</div>
+      <h1 style="text-align:center;font-size:22px;">Booking Confirmed!</h1>
+      <p style="text-align:center;">Our team will call you before arrival. For queries, call <strong>+91 74284 56590</strong>.</p>
+      <div class="confirmation-code">${b.booking_code}</div>
+      <div class="card" style="background:var(--gray-50);">
+        <div class="review-row"><span>Patient</span><span>${b.patient_name}</span></div>
+        <div class="review-row"><span>${b.item_name || 'Test/Package'}</span></div>
+        <div class="review-row"><span>Date &amp; Time</span><span>${dateStr}, ${b.slot_label}</span></div>
+        <div class="review-row"><span>Collection</span><span>${b.collection_type === 'home' ? '🏠 Home Collection' : '🏥 Walk-in at Lab'}</span></div>
+        ${b.city ? `<div class="review-row"><span>Area</span><span>${b.city}${b.pincode ? ' — ' + b.pincode : ''}</span></div>` : ''}
+        <div class="review-row"><span>Status</span><span class="badge badge-blue">${b.status}</span></div>
+      </div>
+      <div class="wizard-nav" style="flex-wrap:wrap;">
+        <a href="/pages/track-booking.html?code=${encodeURIComponent(b.booking_code)}" class="btn btn-primary"><i class="fas fa-map-marker-alt"></i> Track Booking</a>
+        <a href="/pages/my-bookings.html" class="btn btn-outline">My Bookings</a>
+        <a href="/index.html" class="btn btn-ghost">Back to Home</a>
+      </div>`;
+  }
+
+  load();
+</script>
+</html>

@@ -40,6 +40,7 @@
 <script type="module">
   import { mountChrome } from '/assets/js/shared-chrome.js';
   import { fetchPackageBySlug } from '/assets/js/services/catalog.js';
+  import { startDraft } from '/assets/js/booking-draft.js';
   mountChrome('packages');
 
   const root = document.getElementById('pkgDetailRoot');
@@ -95,19 +96,15 @@
               ${p.original_price ? `<span class="catalog-price-original">₹${Number(p.original_price).toLocaleString('en-IN')}</span>` : ''}
             </div>
             <p style="font-size:12.5px;">Free home sample collection included.</p>
-            <button class="btn btn-orange btn-block btn-lg" id="bookPkgBtn"><i class="fas fa-calendar-check"></i> Book This Package</button>
-            <p style="font-size:11px;text-align:center;margin-top:10px;color:var(--text-muted);">Multi-step booking launches soon — call us to book this package today.</p>
-            <a href="tel:+917428456590" class="btn btn-ghost btn-block"><i class="fas fa-phone"></i> +91 74284 56590</a>
+            <button class="btn btn-orange btn-block btn-lg" id="bookPkgBtn" data-pkg-id="${p.id}"><i class="fas fa-calendar-check"></i> Book This Package</button>
+            <a href="tel:+917428456590" class="btn btn-ghost btn-block" style="margin-top:8px;"><i class="fas fa-phone"></i> +91 74284 56590</a>
           </div>
         </div>
       </div>`;
 
-    // The multi-step booking wizard (patient details → address → schedule →
-    // review → confirm) is the next phase of this project (see
-    // BOOKING_FLOW.md) — not yet built, so this button is honest about
-    // that instead of linking to a page that doesn't exist yet.
     document.getElementById('bookPkgBtn').addEventListener('click', () => {
-      alert(`Online booking for "${p.name}" is being finalized.\n\nFor now, please call +91 74284 56590 or WhatsApp us to book — we'll confirm your appointment right away.`);
+      startDraft({ itemType: 'package', itemId: p.id, itemName: p.name, itemPrice: p.price });
+      location.href = '/booking/patient-details.html';
     });
   }
 

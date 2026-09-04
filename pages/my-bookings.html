@@ -12,13 +12,21 @@
 <link rel="stylesheet" href="/assets/css/tokens.css">
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/booking.css">
+<style>
+  .booking-row { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--gray-200); }
+  .booking-row:last-child { border-bottom: none; }
+  .booking-row-info { flex: 1; min-width: 0; }
+  .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--success); margin-right: 5px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
 </head>
 
 <div id="site-header"></div>
 
 <main id="main">
   <section class="section">
-    <div class="container" style="max-width:720px;">
+    <div class="container" style="max-width:760px;">
       <div id="authGate" style="display:none;" class="state-block">
         <div class="state-icon">🔒</div>
         <div class="state-title">Please log in to view your bookings</div>
@@ -26,20 +34,12 @@
       </div>
 
       <div id="bookingsContent" style="display:none;">
-        <div class="section-head" style="text-align:left;margin:0 0 24px;">
+        <div class="section-head" style="text-align:left;margin:0 0 6px;">
           <span class="section-eyebrow">My Account</span>
           <h1>My Bookings</h1>
-          <p>Signed in as <strong id="userEmail"></strong></p>
         </div>
-        <div class="state-block">
-          <div class="state-icon">📅</div>
-          <div class="state-title">No bookings yet</div>
-          <div class="state-desc">The online booking system is being finalized — new bookings made here will appear on this page automatically once it launches. In the meantime, call us to book and we'll register it against your account.</div>
-          <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-            <a href="/pages/packages.html" class="btn btn-primary">Browse Packages</a>
-            <a href="tel:+917428456590" class="btn btn-outline"><i class="fas fa-phone"></i> Call to Book</a>
-          </div>
-        </div>
+        <p style="font-size:12px;"><span class="live-dot"></span>Live — updates automatically when your booking status changes</p>
+        <div id="bookingsList" class="card"></div>
       </div>
     </div>
   </section>
@@ -50,18 +50,64 @@
 <script type="module">
   import { mountChrome } from '/assets/js/shared-chrome.js';
   import { supabase } from '/assets/js/supabase-client.js';
+  import { fetchMyBookings } from '/assets/js/services/bookings.js';
+  import { STAGE_META } from '/assets/js/tracker-shared.js';
   mountChrome('my-bookings');
 
-  // REAL protected-route check — this page genuinely requires a session;
-  // the booking LIST itself is empty because the bookings table (next
-  // phase, see ARCHITECTURE_PLAN.md) doesn't exist yet, not because
-  // auth is faked.
   const { data } = await supabase.auth.getSession();
   if (!data.session) {
     document.getElementById('authGate').style.display = 'block';
   } else {
-    document.getElementById('userEmail').textContent = data.session.user.email;
     document.getElementById('bookingsContent').style.display = 'block';
+    await loadBookings();
+    subscribeRealtime(data.session.user.id);
+  }
+
+  function fmtDate(d) { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); }
+
+  async function loadBookings() {
+    const listEl = document.getElementById('bookingsList');
+    listEl.innerHTML = `<div class="state-block"><div class="state-icon">⏳</div><div class="state-title">Loading your bookings…</div></div>`;
+    try {
+      const bookings = await fetchMyBookings();
+      if (!bookings.length) {
+        listEl.innerHTML = `<div class="state-block">
+          <div class="state-icon">📅</div>
+          <div class="state-title">No bookings yet</div>
+          <div class="state-desc">Book a test or package to see it here.</div>
+          <div style="margin-top:14px;"><a href="/pages/packages.html" class="btn btn-primary">Browse Packages</a></div>
+        </div>`;
+        return;
+      }
+      listEl.innerHTML = bookings.map(b => {
+        const meta = STAGE_META[b.stage] || STAGE_META.booked;
+        const itemName = b.booking_items?.[0]?.name_snapshot || 'Test/Package';
+        return `
+          <div class="booking-row">
+            <div class="booking-row-info">
+              <div style="font-weight:700;font-size:14px;">${itemName}</div>
+              <div style="font-size:12px;color:var(--text-muted);">${b.booking_code} · ${fmtDate(b.scheduled_date)}</div>
+            </div>
+            <span class="badge" style="background:${meta.color}22;color:${meta.color};">${meta.icon} ${meta.customerLabel}</span>
+            <a href="/pages/track-booking.html?code=${encodeURIComponent(b.booking_code)}" class="btn btn-outline" style="font-size:12px;padding:8px 14px;">Track</a>
+          </div>`;
+      }).join('');
+    } catch (e) {
+      listEl.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-title">Couldn't load your bookings</div><div class="state-desc">${e.message || 'Please try again.'}</div></div>`;
+    }
+  }
+
+  // Real Supabase Realtime — RLS still applies to what this channel can
+  // see, so this only ever fires for this user's own rows. This is the
+  // genuine push-based path (vs. the public tracker's polling for
+  // guests, who have no session for Realtime to authorize against).
+  function subscribeRealtime(userId) {
+    supabase
+      .channel('my-bookings-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `user_id=eq.${userId}` }, () => {
+        loadBookings();
+      })
+      .subscribe();
   }
 </script>
 </html>

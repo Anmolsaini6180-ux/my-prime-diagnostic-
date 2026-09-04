@@ -13,12 +13,9 @@
 <link rel="stylesheet" href="/assets/css/tokens.css">
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/booking.css">
 <style>
-  .track-wrap { max-width: 480px; margin: 0 auto; }
-  .track-preview { display: flex; justify-content: space-between; margin-top: 28px; position: relative; }
-  .track-preview::before { content:''; position:absolute; top:16px; left:8%; right:8%; height:2px; background:var(--gray-200); z-index:0; }
-  .track-step { flex:1; text-align:center; position:relative; z-index:1; font-size:11px; color:var(--text-muted); }
-  .track-dot { width:32px; height:32px; border-radius:50%; background:var(--gray-100); border:2px solid var(--gray-200); margin:0 auto 6px; display:flex; align-items:center; justify-content:center; font-size:13px; }
+  .track-wrap { max-width: 640px; margin: 0 auto; }
 </style>
 </head>
 
@@ -36,28 +33,17 @@
       <form id="trackForm" class="card">
         <div class="field">
           <label for="trkId">Booking ID</label>
-          <input type="text" id="trkId" placeholder="e.g. MPD-1234567890" required>
+          <input type="text" id="trkId" placeholder="e.g. MPD-7X9K2M" required style="text-transform:uppercase;">
         </div>
         <div class="field">
           <label for="trkPhone">Mobile Number</label>
           <input type="tel" id="trkPhone" maxlength="10" placeholder="10-digit mobile used at booking" required>
           <div class="field-error" id="trkPhoneErr">Enter a valid 10-digit mobile number.</div>
         </div>
-        <button type="submit" class="btn btn-primary btn-block btn-lg">Track My Booking</button>
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="trackSubmitBtn">Track My Booking</button>
       </form>
 
-      <div id="trackResult" style="margin-top:20px;"></div>
-
-      <div class="card" style="margin-top:24px;background:var(--blue-pale);">
-        <h3 style="font-size:14px;">What tracking will show</h3>
-        <div class="track-preview">
-          <div class="track-step"><div class="track-dot">📅</div>Confirmed</div>
-          <div class="track-step"><div class="track-dot">🚗</div>Agent Assigned</div>
-          <div class="track-step"><div class="track-dot">🧪</div>Sample Collected</div>
-          <div class="track-step"><div class="track-dot">🔬</div>Processing</div>
-          <div class="track-step"><div class="track-dot">📄</div>Report Ready</div>
-        </div>
-      </div>
+      <div id="trackResult" style="margin-top:24px;"></div>
     </div>
   </section>
 </main>
@@ -66,30 +52,105 @@
 
 <script type="module">
   import { mountChrome } from '/assets/js/shared-chrome.js';
+  import { trackBooking, trackBookingTimeline } from '/assets/js/services/bookings.js';
+  import { STAGE_FLOW, STAGE_META, stageIndex, isTerminalException } from '/assets/js/tracker-shared.js';
   mountChrome('track-booking');
 
-  // HONEST STATE: the bookings/tracker_states tables and the secure
-  // lookup RPC (see BOOKING_FLOW.md §6.2 for the security design still
-  // pending a decision) are the next phase of backend work. This form
-  // validates real input and gives a truthful "not live yet" result
-  // instead of faking a status timeline against data that doesn't exist.
+  const prefillCode = new URLSearchParams(location.search).get('code');
+  if (prefillCode) document.getElementById('trkId').value = prefillCode;
+
+  let pollTimer = null;
+
+  function renderTimeline(booking, history) {
+    const historyMap = {};
+    history.forEach(h => { if (!historyMap[h.new_status]) historyMap[h.new_status] = h.created_at; });
+
+    const exception = isTerminalException(booking.stage);
+    const currentIdx = exception ? -1 : stageIndex(booking.stage);
+
+    const rows = STAGE_FLOW.map((key, i) => {
+      const meta = STAGE_META[key];
+      const done = !exception && i < currentIdx;
+      const current = !exception && i === currentIdx;
+      const cls = done ? 'done' : current ? 'current' : 'upcoming';
+      const ts = historyMap[key];
+      return `
+        <div class="timeline-item ${cls}">
+          <div class="timeline-dot">${done ? '✓' : meta.icon}</div>
+          <div class="timeline-content">
+            <div class="timeline-label">${meta.customerLabel}</div>
+            ${ts ? `<div class="timeline-time">${new Date(ts).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+
+    const exceptionBanner = exception
+      ? `<div class="badge badge-orange" style="margin-bottom:16px;font-size:12px;padding:6px 14px;">${STAGE_META[booking.stage].icon} ${STAGE_META[booking.stage].customerLabel}</div>`
+      : '';
+
+    return `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+          <div>
+            <div style="font-weight:800;font-size:17px;">${booking.patient_name}</div>
+            <div style="font-size:12.5px;color:var(--text-muted);">${booking.item_name || ''} · ${booking.booking_code}</div>
+          </div>
+          <button class="btn btn-ghost" id="refreshBtn" style="font-size:12px;padding:8px 14px;" title="Live updates for guests use polling, not push — see BOOKING_IMPLEMENTATION.md"><i class="fas fa-sync-alt"></i> Refresh</button>
+        </div>
+        ${exceptionBanner}
+        <div class="meta-row" style="margin-bottom:18px;">
+          <span class="meta-item">📅 ${new Date(booking.scheduled_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, ${booking.slot_label}</span>
+          <span class="meta-item">${booking.collection_type === 'home' ? '🏠 Home Collection' : '🏥 Walk-in at Lab'}</span>
+          ${booking.city ? `<span class="meta-item">📍 ${booking.city}</span>` : ''}
+        </div>
+        <div class="timeline-vertical timeline-horizontal">${rows}</div>
+        <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:18px;margin-bottom:0;">This page checks for updates automatically every 25 seconds.</p>
+      </div>`;
+  }
+
+  async function doTrack(code, phone, isPoll) {
+    const resultEl = document.getElementById('trackResult');
+    if (!isPoll) {
+      resultEl.innerHTML = `<div class="state-block"><div class="state-icon">⏳</div><div class="state-title">Looking up your booking…</div></div>`;
+    }
+    try {
+      const [booking, history] = await Promise.all([
+        trackBooking(code, phone),
+        trackBookingTimeline(code, phone),
+      ]);
+      if (!booking) {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        resultEl.innerHTML = `<div class="state-block">
+          <div class="state-icon">🔍</div>
+          <div class="state-title">No matching booking found</div>
+          <div class="state-desc">Double-check your Booking ID and the mobile number used at booking. Still stuck? <a href="tel:+917428456590">Call us</a>.</div>
+        </div>`;
+        return;
+      }
+      resultEl.innerHTML = renderTimeline(booking, history);
+      document.getElementById('refreshBtn').addEventListener('click', () => doTrack(code, phone, false));
+
+      if (!pollTimer) {
+        pollTimer = setInterval(() => doTrack(code, phone, true), 25000);
+      }
+    } catch (e) {
+      if (!isPoll) {
+        resultEl.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-title">Something went wrong</div><div class="state-desc">${e.message || 'Please try again.'}</div></div>`;
+      }
+    }
+  }
+
   document.getElementById('trackForm').addEventListener('submit', (e) => {
     e.preventDefault();
+    const code = document.getElementById('trkId').value.trim().toUpperCase();
     const phone = document.getElementById('trkPhone').value.trim();
     const phoneErr = document.getElementById('trkPhoneErr');
     if (!/^[6-9]\d{9}$/.test(phone)) { phoneErr.classList.add('show'); return; }
     phoneErr.classList.remove('show');
-
-    document.getElementById('trackResult').innerHTML = `
-      <div class="state-block" style="padding:32px 20px;">
-        <div class="state-icon">🚧</div>
-        <div class="state-title">Live tracking launches shortly</div>
-        <div class="state-desc">We're finishing the secure booking lookup. In the meantime, call or WhatsApp us with your Booking ID and we'll check your status right away.</div>
-        <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap;">
-          <a href="tel:+917428456590" class="btn btn-primary"><i class="fas fa-phone"></i> Call Us</a>
-          <a href="https://wa.me/917428456590" target="_blank" rel="noopener" class="btn btn-outline"><i class="fab fa-whatsapp"></i> WhatsApp</a>
-        </div>
-      </div>`;
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    doTrack(code, phone, false);
   });
+
+  window.addEventListener('beforeunload', () => { if (pollTimer) clearInterval(pollTimer); });
 </script>
 </html>

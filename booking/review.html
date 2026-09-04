@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Review Booking | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/booking.css">
+<style>
+  .pay-toggle { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; margin-bottom: 6px; }
+  .pay-card { border: 2px solid var(--gray-200); border-radius: var(--radius-md); padding: 14px; text-align: center; cursor: pointer; transition: var(--transition); }
+  .pay-card.selected { border-color: var(--blue); background: var(--blue-pale); }
+  .pay-card-icon { font-size: 20px; margin-bottom: 4px; }
+  .pay-card-title { font-weight: 700; font-size: 13px; }
+  .pay-card-sub { font-size: 11px; color: var(--text-muted); }
+  .coupon-row { display: flex; gap: 8px; }
+  .coupon-row input { flex: 1; }
+</style>
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <section class="section">
+    <div class="container wizard-wrap">
+      <div id="stepperRoot"></div>
+      <div id="summaryRoot"></div>
+
+      <div class="card wizard-card" id="reviewCard">
+        <h1 style="font-size:20px;">Review Your Booking</h1>
+        <p style="font-size:13px;">Please check everything before confirming.</p>
+        <div id="reviewSections"></div>
+
+        <div class="review-section">
+          <div class="review-section-title" style="margin-bottom:8px;">Have a Coupon?</div>
+          <div class="coupon-row">
+            <input type="text" id="couponInput" placeholder="Enter coupon code">
+            <button type="button" class="btn btn-outline" id="applyCouponBtn">Apply</button>
+          </div>
+          <div id="couponMsg" style="font-size:12px;margin-top:6px;"></div>
+        </div>
+
+        <div class="review-section">
+          <div class="review-section-title" style="margin-bottom:10px;">Payment Method</div>
+          <div class="pay-toggle">
+            <div class="pay-card selected" id="payOffline">
+              <div class="pay-card-icon">📅</div>
+              <div class="pay-card-title">Pay Later</div>
+              <div class="pay-card-sub">Pay at sample collection</div>
+            </div>
+            <div class="pay-card" id="payOnline">
+              <div class="pay-card-icon">💳</div>
+              <div class="pay-card-title">Pay Online</div>
+              <div class="pay-card-sub">Coming soon</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-total-row">
+          <span>Total Amount</span>
+          <span id="reviewTotal">₹0</span>
+        </div>
+
+        <div id="submitError" class="auth-msg error" style="display:none;margin-top:14px;"></div>
+
+        <div class="wizard-nav">
+          <a href="/booking/schedule.html" class="btn btn-ghost">Back</a>
+          <button type="button" class="btn btn-orange" id="confirmBtn"><i class="fas fa-calendar-check"></i> Confirm Booking</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  import { supabase } from '/assets/js/supabase-client.js';
+  import { requireDraftOrRedirect, saveDraft, getDraft, clearDraft, renderSummaryRail, renderStepper } from '/assets/js/booking-draft.js';
+  import { submitBooking } from '/assets/js/services/bookings.js';
+  mountChrome('packages');
+
+  // Matches BACKEND_DEPENDENCIES.md: Razorpay is disabled in production
+  // today. Preserving that exact business state rather than building a
+  // parallel payment path — enabling real online payment is a business
+  // decision outside this phase's scope.
+  const RAZORPAY_ENABLED = false;
+
+  let paymentMode = 'offline';
+  let appliedDiscount = 0;
+
+  const draft = requireDraftOrRedirect();
+  if (!draft) { /* redirected */ }
+  else if (!draft.patientName || !draft.collectionType || !draft.scheduledDate) {
+    location.href = '/booking/patient-details.html';
+  } else {
+    init();
+  }
+
+  function init() {
+    renderStepper(document.getElementById('stepperRoot'), 'review');
+    renderSummaryRail(document.getElementById('summaryRoot'), draft);
+    renderReview();
+  }
+
+  function fmt(n) { return '₹' + Number(n).toLocaleString('en-IN'); }
+
+  function renderReview() {
+    const d = draft;
+    const addressHtml = d.collectionType === 'home'
+      ? `${d.address.addressLine}, ${d.address.city}${d.address.landmark ? ', near ' + d.address.landmark : ''} — ${d.address.pincode}`
+      : 'Walk-in at My Prime Diagnostic, Noida';
+
+    document.getElementById('reviewSections').innerHTML = `
+      <div class="review-section">
+        <div class="review-section-head"><span class="review-section-title">Patient</span><a href="/booking/patient-details.html" class="review-edit-link">Edit</a></div>
+        <div class="review-row"><span>${d.patientName}</span><span>${d.patientPhone}</span></div>
+        ${d.patientEmail ? `<div class="review-row"><span>Email</span><span>${d.patientEmail}</span></div>` : ''}
+      </div>
+      <div class="review-section">
+        <div class="review-section-head"><span class="review-section-title">Collection</span><a href="/booking/collection.html" class="review-edit-link">Edit</a></div>
+        <div class="review-row"><span>${d.collectionType === 'home' ? '🏠 Home Collection' : '🏥 Walk-in at Lab'}</span></div>
+        <div class="review-row" style="color:var(--text-muted);">${addressHtml}</div>
+      </div>
+      <div class="review-section">
+        <div class="review-section-head"><span class="review-section-title">Schedule</span><a href="/booking/schedule.html" class="review-edit-link">Edit</a></div>
+        <div class="review-row"><span>${new Date(d.scheduledDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span><span>${d.slotLabel}</span></div>
+      </div>
+      <div class="review-section">
+        <div class="review-section-head"><span class="review-section-title">${d.itemType === 'package' ? 'Package' : 'Test'}</span></div>
+        <div class="review-row"><span>${d.itemName}</span><span>${fmt(d.itemPrice)}</span></div>
+      </div>`;
+
+    updateTotal();
+  }
+
+  function updateTotal() {
+    const total = Math.max(draft.itemPrice - appliedDiscount, 0);
+    document.getElementById('reviewTotal').textContent = fmt(total);
+  }
+
+  document.getElementById('payOffline').addEventListener('click', () => {
+    paymentMode = 'offline';
+    document.getElementById('payOffline').classList.add('selected');
+    document.getElementById('payOnline').classList.remove('selected');
+  });
+  document.getElementById('payOnline').addEventListener('click', () => {
+    if (!RAZORPAY_ENABLED) {
+      showError('Online payment is coming soon — please choose Pay Later for now.');
+      return;
+    }
+    paymentMode = 'online';
+    document.getElementById('payOnline').classList.add('selected');
+    document.getElementById('payOffline').classList.remove('selected');
+  });
+
+  document.getElementById('applyCouponBtn').addEventListener('click', async () => {
+    const code = document.getElementById('couponInput').value.trim();
+    const msgEl = document.getElementById('couponMsg');
+    if (!code) return;
+    msgEl.textContent = 'Checking…';
+    msgEl.style.color = 'var(--text-muted)';
+    try {
+      const { data, error } = await supabase.rpc('validate_coupon', { coupon_code: code, order_amount: draft.itemPrice });
+      const result = data && data[0];
+      if (error || !result || !result.valid) {
+        msgEl.textContent = (result && result.message) || (error?.message) || 'Invalid coupon code.';
+        msgEl.style.color = 'var(--danger)';
+        appliedDiscount = 0;
+        saveDraft({ couponCode: null });
+      } else {
+        appliedDiscount = Number(result.discount);
+        msgEl.textContent = `✅ ${result.message} — you saved ${fmt(appliedDiscount)}`;
+        msgEl.style.color = 'var(--success)';
+        saveDraft({ couponCode: code });
+      }
+      updateTotal();
+    } catch (e) {
+      msgEl.textContent = 'Could not check this coupon right now.';
+      msgEl.style.color = 'var(--danger)';
+    }
+  });
+
+  function showError(msg) {
+    const el = document.getElementById('submitError');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+  function hideError() {
+    document.getElementById('submitError').style.display = 'none';
+  }
+
+  let submitting = false; // in-memory latch — belt-and-braces alongside disabling the button
+  document.getElementById('confirmBtn').addEventListener('click', async () => {
+    if (submitting) return; // duplicate-click guard
+    submitting = true;
+    hideError();
+    const btn = document.getElementById('confirmBtn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating your booking…';
+
+    try {
+      // Re-read from sessionStorage rather than the `draft` const captured
+      // at page load: saveDraft() (coupon apply, etc.) updates storage but
+      // not that stale in-memory reference — submitting the stale object
+      // silently dropped the applied coupon in testing. Fixed by always
+      // submitting the freshest saved state.
+      const freshDraft = getDraft() || draft;
+      const result = await submitBooking({ ...freshDraft, paymentMode });
+      // Phone travels via sessionStorage, never the URL (personal data
+      // doesn't belong in a query string — it can end up in browser
+      // history, logs, or a copy-pasted link). The confirmation page
+      // reads it from here; a bookmarked/shared confirmation link with
+      // no matching sessionStorage entry falls back to asking the
+      // visitor to verify via Track Booking instead.
+      sessionStorage.setItem('mpd_last_booking_phone', freshDraft.patientPhone);
+      clearDraft();
+      location.href = `/booking/confirmation.html?code=${encodeURIComponent(result.booking_code)}`;
+    } catch (e) {
+      // Real failure — never shown as success. The idempotency key means
+      // a retry (clicking Confirm again) is always safe: create_booking
+      // returns the same booking rather than creating a duplicate.
+      showError(e.message || 'Something went wrong creating your booking. Please try again.');
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      submitting = false;
+    }
+  });
+</script>
+</html>

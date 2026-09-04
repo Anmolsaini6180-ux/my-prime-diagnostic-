@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Collection Type | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/booking.css">
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <section class="section">
+    <div class="container wizard-wrap">
+      <div id="stepperRoot"></div>
+      <div id="summaryRoot"></div>
+
+      <div class="card wizard-card">
+        <h1 style="font-size:20px;">Collection Type</h1>
+        <p style="font-size:13px;">Where should we collect your sample?</p>
+
+        <div class="collection-options" role="radiogroup" aria-label="Collection type">
+          <div class="collection-option" id="optHome" tabindex="0" role="radio" aria-checked="false">
+            <div class="collection-option-icon">🏠</div>
+            <div class="collection-option-title">Home Collection</div>
+            <div class="collection-option-desc">Free within 15 km — our agent visits you</div>
+          </div>
+          <div class="collection-option" id="optLab" tabindex="0" role="radio" aria-checked="false">
+            <div class="collection-option-icon">🏥</div>
+            <div class="collection-option-title">Walk-in at Lab</div>
+            <div class="collection-option-desc">Visit our Noida lab directly</div>
+          </div>
+        </div>
+        <div class="field-error" id="collectionErr" style="margin-bottom:14px;">Please choose a collection type.</div>
+
+        <form id="collectionForm">
+          <div id="addressFields" style="display:none;">
+            <div class="field">
+              <label for="aLine">Address *</label>
+              <textarea id="aLine" rows="2" placeholder="House/Flat, Street, Area"></textarea>
+              <div class="field-error" id="aLineErr">Please enter your address.</div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="aCity">City *</label>
+                <input type="text" id="aCity" placeholder="e.g. Noida">
+                <div class="field-error" id="aCityErr">Please enter your city.</div>
+              </div>
+              <div class="field">
+                <label for="aPincode">Pincode *</label>
+                <input type="tel" id="aPincode" maxlength="6" placeholder="6-digit pincode">
+                <div class="field-error" id="aPincodeErr">Enter a valid 6-digit pincode.</div>
+              </div>
+            </div>
+            <div class="field">
+              <label for="aLandmark">Landmark (optional)</label>
+              <input type="text" id="aLandmark">
+            </div>
+          </div>
+
+          <div class="wizard-nav">
+            <a href="/booking/patient-details.html" class="btn btn-ghost">Back</a>
+            <button type="submit" class="btn btn-primary">Continue</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  import { requireDraftOrRedirect, saveDraft, renderSummaryRail, renderStepper } from '/assets/js/booking-draft.js';
+  mountChrome('packages');
+
+  const draft = requireDraftOrRedirect();
+  let selectedType = draft?.collectionType || null;
+
+  if (draft) {
+    renderStepper(document.getElementById('stepperRoot'), 'collection');
+    renderSummaryRail(document.getElementById('summaryRoot'), draft);
+  }
+
+  const optHome = document.getElementById('optHome');
+  const optLab = document.getElementById('optLab');
+  const addressFields = document.getElementById('addressFields');
+
+  function selectType(type) {
+    selectedType = type;
+    optHome.classList.toggle('selected', type === 'home');
+    optHome.setAttribute('aria-checked', type === 'home');
+    optLab.classList.toggle('selected', type === 'lab_visit');
+    optLab.setAttribute('aria-checked', type === 'lab_visit');
+    addressFields.style.display = type === 'home' ? 'block' : 'none';
+    document.getElementById('collectionErr').classList.remove('show');
+  }
+
+  optHome.addEventListener('click', () => selectType('home'));
+  optLab.addEventListener('click', () => selectType('lab_visit'));
+  [optHome, optLab].forEach(el => el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+  }));
+
+  if (selectedType) selectType(selectedType);
+  if (draft?.address) {
+    document.getElementById('aLine').value = draft.address.addressLine || '';
+    document.getElementById('aCity').value = draft.address.city || '';
+    document.getElementById('aPincode').value = draft.address.pincode || '';
+    document.getElementById('aLandmark').value = draft.address.landmark || '';
+  }
+
+  document.getElementById('collectionForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!selectedType) {
+      document.getElementById('collectionErr').classList.add('show');
+      return;
+    }
+
+    if (selectedType === 'home') {
+      let valid = true;
+      const line = document.getElementById('aLine');
+      const city = document.getElementById('aCity');
+      const pin = document.getElementById('aPincode');
+
+      const lineOk = line.value.trim().length > 5;
+      document.getElementById('aLineErr').classList.toggle('show', !lineOk);
+      if (!lineOk) valid = false;
+
+      const cityOk = city.value.trim().length > 1;
+      document.getElementById('aCityErr').classList.toggle('show', !cityOk);
+      if (!cityOk) valid = false;
+
+      const pinOk = /^\d{6}$/.test(pin.value.trim());
+      document.getElementById('aPincodeErr').classList.toggle('show', !pinOk);
+      if (!pinOk) valid = false;
+
+      if (!valid) return;
+
+      saveDraft({
+        collectionType: 'home',
+        address: {
+          addressLine: line.value.trim(),
+          city: city.value.trim(),
+          state: null,
+          pincode: pin.value.trim(),
+          landmark: document.getElementById('aLandmark').value.trim() || null,
+        },
+      });
+    } else {
+      saveDraft({ collectionType: 'lab_visit', address: null });
+    }
+
+    location.href = '/booking/schedule.html';
+  });
+</script>
+</html>

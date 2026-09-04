@@ -1,6 +1,8 @@
-# BOOKING_FLOW.md — Booking & Tracker: As-Is and Proposed
+# BOOKING_FLOW.md — Booking & Tracker: As-Is and Implemented
 
-Companion to [AUDIT.md](AUDIT.md) §7/§9 and [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §6. This document is the detailed field-level reference for rebuilding the booking experience as a multi-page wizard **without changing what gets written to Firestore**.
+Companion to [AUDIT.md](AUDIT.md) §7/§9 and [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §6. This document is the detailed field-level reference for the booking experience.
+
+> **Status: the multi-step wizard described in §3, and the Track Booking design in §6, are now built, tested, and live against Supabase** — see [BOOKING_IMPLEMENTATION.md](BOOKING_IMPLEMENTATION.md) for what was actually verified. §1-2 below remain as the historical record of the *original Firebase app's* flow (still running, untouched, in `index-1.html`); §3-8 have been updated from "proposed" to "as-built" where the design was carried through unchanged, with actual deviations called out explicitly.
 
 ---
 
@@ -161,34 +163,33 @@ Recommendation leans **Option A** for Phase 1 (smaller, lower-risk, matches the 
 
 This is a 1:1 relabeling — **no new statuses, no changed flow order, no changes to how staff move a booking through stages.** `assets/js/tracker-shared.js` (per ARCHITECTURE_PLAN.md §8) holds exactly this mapping table so the public page and the admin page can never drift out of sync on wording.
 
-### 6.2 Lookup mechanism — the one real design decision, and the one real backend change
+### 6.2 Lookup mechanism — decided and built
 
-A patient needs to find their booking by something they know (Booking ID and/or phone number), without being able to browse or guess *other* patients' bookings. Booking IDs today are `MPD-<millisecond-timestamp>` — **sequential and guessable**, so a public Firestore rule that allows "read any `bookings` doc if you know its ID" would let someone iterate timestamps and read other patients' data. This must not be done naively.
+**Decision made: Booking Code + the exact phone number used at booking time**, verified inside a `SECURITY DEFINER` Postgres RPC (`track_booking()` / `track_booking_timeline()` — option (1) from the original three-way tradeoff below, minus needing a *separate* Edge Function, since a Postgres RPC gives the same "server checks both fields, returns only a safe payload" guarantee natively). A wrong phone against a real code returns the same empty result as a wrong code — the two failure modes are indistinguishable, so a partial guess can't be narrowed down. Verified live: a real booking code with an incorrect phone returns nothing; the correct phone returns the real status. Full detail in [BOOKING_IMPLEMENTATION.md §5](BOOKING_IMPLEMENTATION.md).
 
-**Recommended approach**: require **both** Booking ID **and** the mobile number used at booking time before any data is returned. Concretely:
-- Client queries are not the right tool for "read one doc by ID and check a field" in Firestore's security-rules model, since a `get` rule can inspect `resource.data` but the client doesn't send anything to compare it against except by convention.
-- Practical options, in order of recommended preference:
-  1. **A small serverless function** (Firebase Cloud Function or equivalent) that takes `{bookingId, phone}`, checks them server-side against Firestore, and returns only a minimal status payload (stage, timeline, package name — never the full patient record). This is the cleanest and most future-proof option and is the recommended path, but is a genuinely new piece of backend surface — **flagged for explicit approval before building**, since the brief's backend rule is "preserve existing functionality," and a Cloud Function is new functionality, not a change to existing data.
-  2. **A narrow Firestore rule** allowing `get` on `bookings/{id}` only if the request supplies the correct phone via a custom mechanism (e.g., a companion `public_tracker/{bookingId}` doc containing only non-sensitive fields, created at booking time alongside the main `bookings` doc, whose rule checks a hash of the phone number embedded in the doc ID or a field). More rules complexity, but no new server functions.
-  3. **Do not expose it publicly at all yet** — ship the Track Booking *page* backed by the *existing* admin-only data path behind a require-login gate (patient must be logged in with the email/phone that matches the booking) as an interim step, and revisit public/anonymous lookup as a fast-follow once a security approach is chosen.
+The three options originally weighed (kept here for context on why option 1's *spirit* won even though the implementation isn't a Cloud/Edge Function specifically):
+1. ~~A small serverless function~~ → became a Postgres RPC instead — same security property, no separate deployable.
+2. A narrow rules-based `get` with a companion doc — not needed; RLS plus a `SECURITY DEFINER` function covers this natively in Postgres.
+3. Require login — rejected as the primary path (guest bookings are real, per AUDIT.md), but implemented as a *bonus* fast path: a logged-in patient viewing their own booking from My Bookings skips straight to a real-time RLS-gated view, no phone re-entry needed.
 
-This document does not pick one of these — it surfaces the tradeoff for a decision, per the audit-only scope of this task.
+### 6.3 What the Track Booking page shows — built
 
-### 6.3 What the Track Booking page shows
-
-A vertical progress indicator using the §6.1 labels, the current stage highlighted, past stages checked off, using the same visual language (icons/colors) as the existing admin timeline (`_renderDetailTimeline`) for consistency — reusing color values already defined in `TRACKER_STATUSES`.
+A vertical progress indicator on mobile, horizontal on desktop (CSS breakpoint at 768px, same component for both), current stage highlighted, past stages checked off with timestamps, using the shared color/icon values from `assets/js/tracker-shared.js` — reused, not reinvented, so a future admin-side tracker UI can consume the exact same module and never drift on wording from the public page.
 
 ---
 
-## 7. Booking ID Format
+## 7. Booking ID Format — decided differently than originally recommended, deliberately
 
-Recommend **keeping** `MPD-<timestamp>` for continuity with existing bookings and admin tooling (changing the ID scheme would be a breaking change to every place that already stores/displays/searches booking IDs). A friendlier *display* format (e.g., showing it as `MPD-XXXXXX` with the last 6 digits, or adding a separate human-readable short code just for customer-facing display while keeping the real ID as the Firestore doc key) could be layered on later without touching the underlying scheme — noted as a possible future enhancement, not a Phase-1 requirement.
+Phase 0 recommended **keeping** `MPD-<timestamp>` for continuity. That recommendation was **not followed** once the Supabase schema was actually built, for a concrete reason found during implementation: the timestamp scheme is sequential and guessable, and the new public Track Booking page makes that a live exposure it wasn't before (nothing public could look up a booking by ID in the old Firebase app at all). The new scheme — `MPD-` + 6 random characters from a 31-symbol alphabet (`generate_booking_code()`, DATABASE.md §3) — keeps the same visual format and the same "easy for a customer to read over the phone" property, while removing the guessability. This only affects **new** bookings created against the Supabase schema; nothing about the existing Firebase `MPD-<timestamp>` IDs already issued needs to change, since that system is untouched.
 
 ---
 
 ## 8. What Must Not Change
 
+**Regarding `index-1.html` (unchanged, still running)**:
 - The `bookings` Firestore document shape and field names (§1.1) — the admin Booking Management, Booking Tracker, Cash Flow auto-sync, and CSV export all depend on these exact names today.
-- `attachBookingOwnership()` must still run on every new booking, unchanged, so RBAC scoping keeps working.
-- The `TRACKER_STATUSES`/`TRACKER_FLOW` values and `tracker_states` document shape — admin staff continue moving bookings through stages exactly as they do today; only a new *read* surface is being added.
-- Razorpay/Cloudinary/EmailJS/WhatsApp/Google-Sheets call sites — ported as-is into the new submit logic, not rewritten.
+- `attachBookingOwnership()` must still run on every new booking there, unchanged, so RBAC scoping keeps working.
+- The `TRACKER_STATUSES`/`TRACKER_FLOW` values and `tracker_states` document shape.
+- Razorpay/Cloudinary/EmailJS/WhatsApp/Google-Sheets call sites there — untouched.
+
+**Regarding the new Supabase-backed booking system (built in Phase 2)** — see [BOOKING_IMPLEMENTATION.md](BOOKING_IMPLEMENTATION.md) and [DATABASE.md](DATABASE.md) for the authoritative, current reference: the `bookings`/`booking_items`/`collection_addresses`/`booking_status_history` schema, the `status`+`stage` dual-column model (deliberately mirroring the original's status/tracker-status split), and the RPC-only write path are now the source of truth for anything built against Supabase going forward, and should not be casually altered without updating the RLS policies and the wizard pages that depend on the exact field names.

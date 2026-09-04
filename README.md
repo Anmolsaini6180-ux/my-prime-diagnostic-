@@ -4,7 +4,7 @@ A NABL-certified diagnostic lab's public website — plain HTML/CSS/JS (no build
 
 ## Status
 
-This is an active, in-progress rebuild. **Public catalog browsing + patient auth are real and live.** The multi-step booking wizard, public tracker, admin migration, and realtime updates are the next phases — see the per-page notes in [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md)'s phase table and the honest status report in this session's summary. Nothing in this repo pretends to be finished when it isn't.
+This is an active, in-progress rebuild. **Public catalog browsing, patient auth, the full multi-step booking wizard, the public tracker, and Realtime status updates are real, live, and tested end-to-end against Supabase** — see [BOOKING_IMPLEMENTATION.md](BOOKING_IMPLEMENTATION.md) for exactly what was verified. Admin migration (moving staff-facing tools off `index-1.html`) is the next phase. Nothing in this repo pretends to be finished when it isn't.
 
 ## Running it locally
 
@@ -21,14 +21,18 @@ Then open `http://localhost:5500/index.html`. (A `.claude/launch.json` is alread
 ```
 index.html                  New public homepage
 pages/                       Tests, Packages, detail pages, About, Contact, Login, Track Booking, My Bookings, My Reports
-assets/css/                  tokens.css (design tokens) → base.css (reset/typography) → components.css (buttons, cards, nav, forms, states)
+booking/                     The 5-step wizard: patient-details, collection, schedule, review, confirmation
+assets/css/                  tokens.css → base.css → components.css → booking.css (stepper, summary rail, timeline)
 assets/js/
   supabase-client.js         Supabase client init (public URL + publishable key — see SECURITY.md)
   shared-chrome.js           Shared nav + footer, injected into every page
+  booking-draft.js           Cross-page booking state (sessionStorage) + stepper/summary-rail rendering
+  tracker-shared.js          The one place stage keys/labels/colors are defined — public tracker and (later) admin both import this
   services/catalog.js        The only place that queries packages/tests from Supabase
+  services/bookings.js       The only place that calls the booking RPCs (create_booking, track_booking, etc.)
 supabase/
   migrations/                Every schema change, in order — see DATABASE.md
-  seed/                      Real catalog data ported from index-1.html (not synthetic)
+  seed/                      Real catalog + slot data ported from index-1.html (not synthetic)
 index-1.html                 Legacy Firebase-backed app — admin dashboard lives here for now
 ```
 
@@ -38,7 +42,8 @@ index-1.html                 Legacy Firebase-backed app — admin dashboard live
 |---|---|
 | [AUDIT.md](AUDIT.md) | What `index-1.html` actually contains, as-built |
 | [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) | Why plain HTML/CSS/JS, folder structure, phased rollout |
-| [BOOKING_FLOW.md](BOOKING_FLOW.md) | Old booking flow(s) vs. the planned multi-step wizard |
+| [BOOKING_FLOW.md](BOOKING_FLOW.md) | Old booking flow(s) vs. the built multi-step wizard, and the Track Booking security decision |
+| [BOOKING_IMPLEMENTATION.md](BOOKING_IMPLEMENTATION.md) | What's actually built and tested vs. what's next, bugs found and fixed, real test results |
 | [UI_PLAN.md](UI_PLAN.md) | Design direction and page-by-page UI notes |
 | [BACKEND_DEPENDENCIES.md](BACKEND_DEPENDENCIES.md) | Everything `index-1.html` depends on (Firebase, Cloudinary, Razorpay, etc.) |
 | [DATABASE.md](DATABASE.md) | The actual live Supabase schema |

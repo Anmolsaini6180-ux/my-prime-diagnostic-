@@ -1,0 +1,108 @@
+/* ============================================================
+   Booking wizard + tracker components
+   ============================================================ */
+
+/* ---- Stepper ---- */
+.booking-stepper { display: flex; align-items: flex-start; margin-bottom: 32px; }
+.booking-step { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 56px; }
+.booking-step-dot {
+  width: 34px; height: 34px; border-radius: 50%; background: var(--gray-100); color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
+  border: 2px solid var(--gray-200); transition: var(--transition);
+}
+.booking-step.active .booking-step-dot { background: var(--blue); border-color: var(--blue); color: #fff; }
+.booking-step.done .booking-step-dot { background: var(--success); border-color: var(--success); color: #fff; }
+.booking-step-label { font-size: 10.5px; color: var(--text-muted); text-align: center; white-space: nowrap; }
+.booking-step.active .booking-step-label { color: var(--blue); font-weight: 700; }
+.booking-step-line { flex: 1; height: 2px; background: var(--gray-200); margin-top: 17px; min-width: 12px; }
+
+@media (max-width: 480px) {
+  .booking-step-label { display: none; }
+  .booking-step.active .booking-step-label { display: block; position: absolute; margin-top: 40px; }
+}
+
+/* ---- Summary rail (stays visible through the whole flow) ---- */
+.booking-summary-rail {
+  display: flex; align-items: center; gap: 12px; background: var(--blue-pale);
+  border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 28px;
+}
+.booking-summary-icon { font-size: 24px; }
+.booking-summary-info { flex: 1; }
+.booking-summary-name { font-weight: 700; font-size: 14px; }
+.booking-summary-price { font-size: 13px; color: var(--blue); font-weight: 700; }
+.booking-summary-change { font-size: 12px; font-weight: 600; color: var(--blue); text-decoration: underline; }
+
+/* ---- Wizard layout ---- */
+.wizard-wrap { max-width: 560px; margin: 0 auto; }
+.wizard-card { padding: 28px; }
+.wizard-nav { display: flex; gap: 10px; margin-top: 24px; }
+.wizard-nav .btn { flex: 1; }
+
+/* ---- Collection type cards ---- */
+.collection-options { display: grid; gap: 14px; grid-template-columns: 1fr; margin-bottom: 20px; }
+@media (min-width: 480px) { .collection-options { grid-template-columns: 1fr 1fr; } }
+.collection-option {
+  border: 2px solid var(--gray-200); border-radius: var(--radius-md); padding: 18px; cursor: pointer;
+  transition: var(--transition); text-align: center;
+}
+.collection-option:hover { border-color: var(--blue-light); }
+.collection-option.selected { border-color: var(--blue); background: var(--blue-pale); }
+.collection-option-icon { font-size: 26px; margin-bottom: 8px; }
+.collection-option-title { font-weight: 700; font-size: 14px; }
+.collection-option-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+/* ---- Slot grid ---- */
+.slot-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, 1fr); }
+@media (min-width: 480px) { .slot-grid { grid-template-columns: repeat(3, 1fr); } }
+.slot-btn {
+  padding: 12px 8px; border-radius: var(--radius-sm); border: 1.5px solid var(--gray-200);
+  background: var(--card-bg); font-size: 12.5px; font-weight: 600; text-align: center; transition: var(--transition);
+}
+.slot-btn:not(:disabled):hover { border-color: var(--blue-light); }
+.slot-btn.selected { border-color: var(--blue); background: var(--blue); color: #fff; }
+.slot-btn:disabled { opacity: 0.4; cursor: not-allowed; text-decoration: line-through; }
+
+/* ---- Review sections ---- */
+.review-section { border-bottom: 1px solid var(--gray-200); padding: 16px 0; }
+.review-section:last-of-type { border-bottom: none; }
+.review-section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.review-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.review-edit-link { font-size: 12px; font-weight: 600; color: var(--blue); }
+.review-row { display: flex; justify-content: space-between; font-size: 13.5px; padding: 3px 0; }
+.review-total-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; padding-top: 14px; margin-top: 6px; border-top: 2px solid var(--text); }
+
+/* ---- Confirmation ---- */
+.confirmation-check { font-size: 56px; text-align: center; margin-bottom: 8px; }
+.confirmation-code {
+  text-align: center; font-family: 'Clash Display', sans-serif; font-size: 26px; font-weight: 700;
+  color: var(--blue); background: var(--blue-pale); border-radius: var(--radius-md); padding: 14px; margin: 16px 0;
+  letter-spacing: 0.05em;
+}
+
+/* ---- Timeline (public + admin tracker share this look) ---- */
+.timeline-vertical { display: flex; flex-direction: column; }
+.timeline-item { display: flex; gap: 14px; position: relative; padding-bottom: 26px; }
+.timeline-item:last-child { padding-bottom: 0; }
+.timeline-item::before {
+  content: ''; position: absolute; left: 15px; top: 32px; bottom: 0; width: 2px; background: var(--gray-200);
+}
+.timeline-item:last-child::before { display: none; }
+.timeline-dot {
+  width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0; z-index: 1; background: var(--gray-100); border: 2px solid var(--gray-200);
+}
+.timeline-item.done .timeline-dot { background: var(--success); border-color: var(--success); color: #fff; }
+.timeline-item.current .timeline-dot { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 0 0 4px var(--blue-pale); }
+.timeline-item.upcoming .timeline-dot { color: var(--text-muted); }
+.timeline-content { padding-top: 4px; }
+.timeline-label { font-weight: 700; font-size: 14px; }
+.timeline-item.upcoming .timeline-label { color: var(--text-muted); font-weight: 500; }
+.timeline-time { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+
+@media (min-width: 768px) {
+  .timeline-horizontal { display: flex; align-items: flex-start; }
+  .timeline-horizontal .timeline-item { flex-direction: column; align-items: center; text-align: center; flex: 1; padding-bottom: 0; }
+  .timeline-horizontal .timeline-item::before { left: 50%; top: 15px; right: -50%; bottom: auto; width: auto; height: 2px; }
+  .timeline-horizontal .timeline-item:last-child::before { display: none; }
+  .timeline-horizontal .timeline-content { padding-top: 8px; }
+}
