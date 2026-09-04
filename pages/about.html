@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About Us | My Prime Diagnostic</title>
+<meta name="description" content="My Prime Diagnostic is a NABL-certified pathology lab in Noida offering accurate diagnostics and free home sample collection.">
+<link rel="canonical" href="https://myprimediagnostic.in/pages/about.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<style>
+  .about-hero { background: var(--blue); color: #fff; padding: 56px 0; text-align: center; }
+  .about-hero h1 { color: #fff; }
+  .about-hero p { color: rgba(255,255,255,0.85); max-width: 560px; margin: 0 auto; }
+  .metric-grid { display: grid; gap: 20px; grid-template-columns: repeat(2,1fr); text-align: center; }
+  @media (min-width: 768px) { .metric-grid { grid-template-columns: repeat(4,1fr); } }
+  .metric-val { font-family: 'Clash Display', sans-serif; font-weight: 700; font-size: 32px; color: var(--blue); }
+</style>
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <section class="about-hero">
+    <div class="container">
+      <h1>Precise. Reliable. Caring.</h1>
+      <p>My Prime Diagnostic is a NABL-certified pathology lab in Noida, built around one idea: quality diagnostics shouldn't require a trip to a clinic.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container metric-grid">
+      <div><div class="metric-val">NABL</div><p>Certified Lab</p></div>
+      <div><div class="metric-val">15km</div><p>Free Home Collection</p></div>
+      <div><div class="metric-val">24h</div><p>Report Turnaround</p></div>
+      <div><div class="metric-val">1,240+</div><p>Patients Served</p></div>
+    </div>
+  </section>
+
+  <section class="section" style="background:var(--gray-50);">
+    <div class="container" style="max-width:760px;">
+      <h2>Our Story</h2>
+      <p>We started My Prime Diagnostic to close the gap between accurate lab science and everyday convenience. Every sample is processed under NABL-certified protocols, and every report is reviewed before it reaches you — whether you visited us or we visited you.</p>
+      <h2 style="margin-top:32px;">Our Promise</h2>
+      <p>Accurate results, transparent pricing, and a home collection experience that respects your time — with a team trained to make routine testing feel effortless.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container" style="text-align:center;">
+      <h2>Have questions before you book?</h2>
+      <a href="/pages/contact.html" class="btn btn-primary btn-lg">Contact Us</a>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  mountChrome('about');
+</script>
+</html>

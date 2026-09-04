@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Health Packages | My Prime Diagnostic</title>
+<meta name="description" content="Browse NABL-certified health checkup packages from My Prime Diagnostic — full body checkups, senior citizen panels, women's wellness, and more, with free home sample collection.">
+<link rel="canonical" href="https://myprimediagnostic.in/pages/packages.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <section class="section" style="padding-bottom:0;">
+    <div class="container">
+      <div class="section-head" style="margin-bottom:24px;">
+        <span class="section-eyebrow">Health Packages</span>
+        <h1>Find the right checkup for you</h1>
+        <p>Curated multi-test panels, priced simply, with free home sample collection.</p>
+      </div>
+      <div class="catalog-toolbar">
+        <div class="catalog-search">
+          <i class="fas fa-search" style="color:var(--text-muted);"></i>
+          <input type="search" id="pkgSearch" placeholder="Search packages…" aria-label="Search packages">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0;">
+    <div class="container">
+      <div id="packagesGrid" class="catalog-grid" aria-live="polite"></div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  import { fetchPackages } from '/assets/js/services/catalog.js';
+  mountChrome('packages');
+
+  let allPackages = [];
+  const grid = document.getElementById('packagesGrid');
+
+  function render(list) {
+    if (!list.length) {
+      grid.innerHTML = `<div class="state-block" style="grid-column:1/-1;">
+        <div class="state-icon">📦</div>
+        <div class="state-title">No packages match your search</div>
+        <div class="state-desc">Try a different keyword, or clear the search box.</div>
+      </div>`;
+      return;
+    }
+    grid.innerHTML = list.map(p => `
+      <div class="catalog-card ${p.featured ? 'featured' : ''}">
+        ${p.badge ? `<span class="catalog-badge">${p.badge}</span>` : ''}
+        <div class="catalog-emoji">${p.emoji || '💊'}</div>
+        <div class="catalog-name">${p.name}</div>
+        <p class="catalog-desc">${p.description || ''}</p>
+        <div class="catalog-price-row">
+          <span class="catalog-price">₹${Number(p.price).toLocaleString('en-IN')}</span>
+          ${p.original_price ? `<span class="catalog-price-original">₹${Number(p.original_price).toLocaleString('en-IN')}</span>` : ''}
+        </div>
+        <ul class="catalog-features">${p.features.slice(0, 4).map(f => `<li>${f}</li>`).join('')}
+          ${p.features.length > 4 ? `<li style="color:var(--text-muted);">+${p.features.length - 4} more</li>` : ''}
+        </ul>
+        <div class="catalog-card-actions">
+          <a href="/pages/package-detail.html?slug=${p.slug}" class="btn btn-outline btn-block">View Details &amp; Book</a>
+        </div>
+      </div>`).join('');
+  }
+
+  function skeletons() {
+    grid.innerHTML = Array.from({ length: 6 }).map(() => `
+      <div class="skeleton-card">
+        <div class="skeleton-line" style="width:40%;height:28px;"></div>
+        <div class="skeleton-line" style="width:90%;"></div>
+        <div class="skeleton-line" style="width:60%;"></div>
+        <div class="skeleton-line" style="width:100%;height:38px;margin-top:14px;"></div>
+      </div>`).join('');
+  }
+
+  async function load() {
+    skeletons();
+    try {
+      allPackages = await fetchPackages();
+      render(allPackages);
+    } catch (e) {
+      grid.innerHTML = `<div class="state-block" style="grid-column:1/-1;">
+        <div class="state-icon">⚠️</div>
+        <div class="state-title">Couldn't load packages</div>
+        <div class="state-desc">${e.message || 'Please check your connection and try again.'}</div>
+      </div>`;
+    }
+  }
+
+  document.getElementById('pkgSearch').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    render(!q ? allPackages : allPackages.filter(p => p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q)));
+  });
+
+  load();
+</script>
+</html>

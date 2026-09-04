@@ -1,0 +1,12 @@
+# Environment / secrets — never commit real values
+.env
+.env.local
+.env.*.local
+
+# Node (only relevant if any tooling is ever added later)
+node_modules/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.log

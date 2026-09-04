@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Track Booking | My Prime Diagnostic</title>
+<meta name="description" content="Track the status of your My Prime Diagnostic booking — from sample collection to report ready.">
+<link rel="canonical" href="https://myprimediagnostic.in/pages/track-booking.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<style>
+  .track-wrap { max-width: 480px; margin: 0 auto; }
+  .track-preview { display: flex; justify-content: space-between; margin-top: 28px; position: relative; }
+  .track-preview::before { content:''; position:absolute; top:16px; left:8%; right:8%; height:2px; background:var(--gray-200); z-index:0; }
+  .track-step { flex:1; text-align:center; position:relative; z-index:1; font-size:11px; color:var(--text-muted); }
+  .track-dot { width:32px; height:32px; border-radius:50%; background:var(--gray-100); border:2px solid var(--gray-200); margin:0 auto 6px; display:flex; align-items:center; justify-content:center; font-size:13px; }
+</style>
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <section class="section">
+    <div class="container track-wrap">
+      <div class="section-head">
+        <span class="section-eyebrow">Track Booking</span>
+        <h1>Where's my sample?</h1>
+        <p>Enter your Booking ID and mobile number to check your status.</p>
+      </div>
+
+      <form id="trackForm" class="card">
+        <div class="field">
+          <label for="trkId">Booking ID</label>
+          <input type="text" id="trkId" placeholder="e.g. MPD-1234567890" required>
+        </div>
+        <div class="field">
+          <label for="trkPhone">Mobile Number</label>
+          <input type="tel" id="trkPhone" maxlength="10" placeholder="10-digit mobile used at booking" required>
+          <div class="field-error" id="trkPhoneErr">Enter a valid 10-digit mobile number.</div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg">Track My Booking</button>
+      </form>
+
+      <div id="trackResult" style="margin-top:20px;"></div>
+
+      <div class="card" style="margin-top:24px;background:var(--blue-pale);">
+        <h3 style="font-size:14px;">What tracking will show</h3>
+        <div class="track-preview">
+          <div class="track-step"><div class="track-dot">📅</div>Confirmed</div>
+          <div class="track-step"><div class="track-dot">🚗</div>Agent Assigned</div>
+          <div class="track-step"><div class="track-dot">🧪</div>Sample Collected</div>
+          <div class="track-step"><div class="track-dot">🔬</div>Processing</div>
+          <div class="track-step"><div class="track-dot">📄</div>Report Ready</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  mountChrome('track-booking');
+
+  // HONEST STATE: the bookings/tracker_states tables and the secure
+  // lookup RPC (see BOOKING_FLOW.md §6.2 for the security design still
+  // pending a decision) are the next phase of backend work. This form
+  // validates real input and gives a truthful "not live yet" result
+  // instead of faking a status timeline against data that doesn't exist.
+  document.getElementById('trackForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const phone = document.getElementById('trkPhone').value.trim();
+    const phoneErr = document.getElementById('trkPhoneErr');
+    if (!/^[6-9]\d{9}$/.test(phone)) { phoneErr.classList.add('show'); return; }
+    phoneErr.classList.remove('show');
+
+    document.getElementById('trackResult').innerHTML = `
+      <div class="state-block" style="padding:32px 20px;">
+        <div class="state-icon">🚧</div>
+        <div class="state-title">Live tracking launches shortly</div>
+        <div class="state-desc">We're finishing the secure booking lookup. In the meantime, call or WhatsApp us with your Booking ID and we'll check your status right away.</div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap;">
+          <a href="tel:+917428456590" class="btn btn-primary"><i class="fas fa-phone"></i> Call Us</a>
+          <a href="https://wa.me/917428456590" target="_blank" rel="noopener" class="btn btn-outline"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+        </div>
+      </div>`;
+  });
+</script>
+</html>

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="pageTitle">Test Details | My Prime Diagnostic</title>
+<meta name="description" id="pageDesc" content="View test details and pricing at My Prime Diagnostic.">
+<link rel="robots" content="noindex" id="robotsTag">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<style>
+  .test-detail-grid { display: grid; gap: 32px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .test-detail-grid { grid-template-columns: 1.6fr 1fr; } }
+  .pkg-sticky-buy { position: sticky; top: 90px; }
+</style>
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <div class="container" style="padding-top:32px;">
+    <a href="/pages/tests.html" style="font-size:13px;color:var(--text-muted);"><i class="fas fa-arrow-left"></i> Back to Tests</a>
+  </div>
+  <section class="section">
+    <div class="container" id="testDetailRoot">
+      <div class="state-block"><div class="state-icon">⏳</div><div class="state-title">Loading test…</div></div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  import { fetchTestBySlug } from '/assets/js/services/catalog.js';
+  mountChrome('tests');
+
+  const root = document.getElementById('testDetailRoot');
+  const slug = new URLSearchParams(location.search).get('slug');
+
+  function renderNotFound() {
+    root.innerHTML = `<div class="state-block">
+      <div class="state-icon">🔍</div>
+      <div class="state-title">Test not found</div>
+      <div class="state-desc">This test may have been removed or renamed.</div>
+      <div style="margin-top:16px;"><a href="/pages/tests.html" class="btn btn-primary">Browse All Tests</a></div>
+    </div>`;
+  }
+
+  function renderTest(t) {
+    document.getElementById('pageTitle').textContent = `${t.name} | My Prime Diagnostic`;
+    document.getElementById('pageDesc').setAttribute('content', t.description || `${t.name} at My Prime Diagnostic.`);
+    document.getElementById('robotsTag').remove();
+
+    root.innerHTML = `
+      <div class="test-detail-grid">
+        <div>
+          <h1>${t.icon || '🔬'} ${t.name}</h1>
+          <p>${t.description || `${t.name} — accurate results from an NABL-certified lab, with free home sample collection.`}</p>
+          <div class="meta-row">
+            ${t.category ? `<span class="meta-item">📁 Category: <strong>${t.category}</strong></span>` : ''}
+            ${t.sample_type ? `<span class="meta-item">🧪 Sample: <strong>${t.sample_type}</strong></span>` : ''}
+          </div>
+          ${t.preparation ? `<h3 style="margin-top:22px;">Preparation</h3><p>${t.preparation}</p>` : ''}
+        </div>
+        <div>
+          <div class="card pkg-sticky-buy">
+            <div class="catalog-price-row">
+              <span class="catalog-price" style="font-size:34px;">₹${Number(t.price).toLocaleString('en-IN')}</span>
+              ${t.price_note ? `<span class="catalog-price-original" style="text-decoration:none;">${t.price_note}</span>` : ''}
+            </div>
+            <p style="font-size:12.5px;">Free home sample collection included.</p>
+            <button class="btn btn-orange btn-block btn-lg" id="bookTestBtn"><i class="fas fa-calendar-check"></i> Book This Test</button>
+            <p style="font-size:11px;text-align:center;margin-top:10px;color:var(--text-muted);">Multi-step booking launches soon — call us to book this test today.</p>
+            <a href="tel:+917428456590" class="btn btn-ghost btn-block"><i class="fas fa-phone"></i> +91 74284 56590</a>
+          </div>
+        </div>
+      </div>`;
+
+    document.getElementById('bookTestBtn').addEventListener('click', () => {
+      alert(`Online booking for "${t.name}" is being finalized.\n\nFor now, please call +91 74284 56590 or WhatsApp us to book — we'll confirm your appointment right away.`);
+    });
+  }
+
+  async function load() {
+    if (!slug) return renderNotFound();
+    try {
+      const test = await fetchTestBySlug(slug);
+      test ? renderTest(test) : renderNotFound();
+    } catch (e) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-title">Couldn't load this test</div><div class="state-desc">${e.message || 'Please try again.'}</div></div>`;
+    }
+  }
+
+  load();
+</script>
+</html>

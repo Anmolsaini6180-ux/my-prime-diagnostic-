@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Bookings | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <section class="section">
+    <div class="container" style="max-width:720px;">
+      <div id="authGate" style="display:none;" class="state-block">
+        <div class="state-icon">🔒</div>
+        <div class="state-title">Please log in to view your bookings</div>
+        <div style="margin-top:14px;"><a href="/pages/login.html?redirect=/pages/my-bookings.html" class="btn btn-primary">Login</a></div>
+      </div>
+
+      <div id="bookingsContent" style="display:none;">
+        <div class="section-head" style="text-align:left;margin:0 0 24px;">
+          <span class="section-eyebrow">My Account</span>
+          <h1>My Bookings</h1>
+          <p>Signed in as <strong id="userEmail"></strong></p>
+        </div>
+        <div class="state-block">
+          <div class="state-icon">📅</div>
+          <div class="state-title">No bookings yet</div>
+          <div class="state-desc">The online booking system is being finalized — new bookings made here will appear on this page automatically once it launches. In the meantime, call us to book and we'll register it against your account.</div>
+          <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <a href="/pages/packages.html" class="btn btn-primary">Browse Packages</a>
+            <a href="tel:+917428456590" class="btn btn-outline"><i class="fas fa-phone"></i> Call to Book</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  import { supabase } from '/assets/js/supabase-client.js';
+  mountChrome('my-bookings');
+
+  // REAL protected-route check — this page genuinely requires a session;
+  // the booking LIST itself is empty because the bookings table (next
+  // phase, see ARCHITECTURE_PLAN.md) doesn't exist yet, not because
+  // auth is faked.
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) {
+    document.getElementById('authGate').style.display = 'block';
+  } else {
+    document.getElementById('userEmail').textContent = data.session.user.email;
+    document.getElementById('bookingsContent').style.display = 'block';
+  }
+</script>
+</html>

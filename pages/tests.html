@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab Tests | My Prime Diagnostic</title>
+<meta name="description" content="Book individual lab tests at My Prime Diagnostic — CBC, thyroid, diabetes, vitamin D, lipid profile, and more, with free home sample collection in Noida.">
+<link rel="canonical" href="https://myprimediagnostic.in/pages/tests.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <section class="section" style="padding-bottom:0;">
+    <div class="container">
+      <div class="section-head" style="margin-bottom:24px;">
+        <span class="section-eyebrow">Individual Tests</span>
+        <h1>Book a single lab test</h1>
+        <p>No bundling required — choose exactly the test you need.</p>
+      </div>
+      <div class="catalog-toolbar">
+        <div class="catalog-search">
+          <i class="fas fa-search" style="color:var(--text-muted);"></i>
+          <input type="search" id="testSearch" placeholder="Search tests…" aria-label="Search tests">
+        </div>
+        <div id="categoryChips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0;">
+    <div class="container">
+      <div id="testsGrid" class="catalog-grid" aria-live="polite"></div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  import { fetchTests, distinctCategories } from '/assets/js/services/catalog.js';
+  mountChrome('tests');
+
+  let allTests = [];
+  let activeCategory = 'all';
+  const grid = document.getElementById('testsGrid');
+
+  function render() {
+    const q = document.getElementById('testSearch').value.trim().toLowerCase();
+    let list = allTests;
+    if (activeCategory !== 'all') list = list.filter(t => t.category === activeCategory);
+    if (q) list = list.filter(t => t.name.toLowerCase().includes(q));
+
+    if (!list.length) {
+      grid.innerHTML = `<div class="state-block" style="grid-column:1/-1;">
+        <div class="state-icon">🔬</div>
+        <div class="state-title">No tests match your filters</div>
+        <div class="state-desc">Try a different search term or category.</div>
+      </div>`;
+      return;
+    }
+    grid.innerHTML = list.map(t => `
+      <div class="catalog-card">
+        <div class="catalog-emoji">${t.icon || '🔬'}</div>
+        <div class="catalog-name">${t.name}</div>
+        <p class="catalog-desc">${t.category || ''}</p>
+        <div class="catalog-price-row"><span class="catalog-price">₹${Number(t.price).toLocaleString('en-IN')}</span>${t.price_note ? `<span class="catalog-price-original" style="text-decoration:none;">${t.price_note}</span>` : ''}</div>
+        <div class="catalog-card-actions">
+          <a href="/pages/test-detail.html?slug=${t.slug}" class="btn btn-outline btn-block">View Details &amp; Book</a>
+        </div>
+      </div>`).join('');
+  }
+
+  function renderChips() {
+    const cats = distinctCategories(allTests);
+    const chipsEl = document.getElementById('categoryChips');
+    chipsEl.innerHTML = ['all', ...cats].map(c => `
+      <button class="filter-chip" data-cat="${c}" aria-pressed="${c === activeCategory}">${c === 'all' ? 'All' : c}</button>
+    `).join('');
+    chipsEl.querySelectorAll('.filter-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeCategory = btn.dataset.cat;
+        chipsEl.querySelectorAll('.filter-chip').forEach(b => b.setAttribute('aria-pressed', b === btn));
+        render();
+      });
+    });
+  }
+
+  async function load() {
+    grid.innerHTML = Array.from({ length: 6 }).map(() => `
+      <div class="skeleton-card">
+        <div class="skeleton-line" style="width:40%;height:28px;"></div>
+        <div class="skeleton-line" style="width:90%;"></div>
+        <div class="skeleton-line" style="width:100%;height:38px;margin-top:14px;"></div>
+      </div>`).join('');
+    try {
+      allTests = await fetchTests();
+      renderChips();
+      render();
+    } catch (e) {
+      grid.innerHTML = `<div class="state-block" style="grid-column:1/-1;">
+        <div class="state-icon">⚠️</div>
+        <div class="state-title">Couldn't load tests</div>
+        <div class="state-desc">${e.message || 'Please check your connection and try again.'}</div>
+      </div>`;
+    }
+  }
+
+  document.getElementById('testSearch').addEventListener('input', render);
+  load();
+</script>
+</html>

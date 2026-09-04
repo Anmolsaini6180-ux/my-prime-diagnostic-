@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<style>
+  .auth-wrap { max-width: 420px; margin: 0 auto; }
+  .auth-tabs { display: flex; background: var(--gray-100); border-radius: 99px; padding: 4px; margin-bottom: 24px; }
+  .auth-tab { flex: 1; border: none; background: none; padding: 10px; border-radius: 99px; font-weight: 600; font-size: 13px; color: var(--text-muted); }
+  .auth-tab[aria-selected="true"] { background: var(--card-bg); color: var(--blue); box-shadow: var(--shadow-sm); }
+  .auth-panel { display: none; }
+  .auth-panel.active { display: block; }
+  .auth-divider { display: flex; align-items: center; gap: 10px; margin: 18px 0; color: var(--text-muted); font-size: 12px; }
+  .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--gray-200); }
+  .auth-msg { font-size: 13px; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; display: none; }
+  .auth-msg.error { display: block; background: #fee2e2; color: #b91c1c; }
+  .auth-msg.success { display: block; background: #dcfce7; color: #16a34a; }
+</style>
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <section class="section">
+    <div class="container auth-wrap">
+      <h1 style="text-align:center;">Welcome to My Prime Diagnostic</h1>
+      <p style="text-align:center;margin-bottom:24px;">Sign in to track bookings and view your reports.</p>
+
+      <div id="alreadyLoggedIn" class="card" style="display:none;text-align:center;">
+        <p>You're already signed in as <strong id="loggedInEmail"></strong>.</p>
+        <button class="btn btn-primary btn-block" id="goToBookingsBtn">Go to My Bookings</button>
+        <button class="btn btn-ghost btn-block" id="signOutBtn" style="margin-top:8px;">Sign Out</button>
+      </div>
+
+      <div id="authForms">
+        <div class="auth-tabs" role="tablist">
+          <button class="auth-tab" role="tab" id="tabLogin" aria-selected="true">Login</button>
+          <button class="auth-tab" role="tab" id="tabRegister" aria-selected="false">Register</button>
+        </div>
+
+        <div id="authMsg" class="auth-msg"></div>
+
+        <!-- LOGIN -->
+        <form id="loginForm" class="auth-panel active card">
+          <div class="field">
+            <label for="loginEmail">Email</label>
+            <input type="email" id="loginEmail" required>
+          </div>
+          <div class="field">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" required minlength="6">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block btn-lg" id="loginSubmitBtn">Login</button>
+          <button type="button" class="btn btn-ghost btn-block" id="forgotPasswordBtn" style="margin-top:10px;">Forgot password?</button>
+        </form>
+
+        <!-- REGISTER -->
+        <form id="registerForm" class="auth-panel card">
+          <div class="field">
+            <label for="regName">Full Name</label>
+            <input type="text" id="regName" required>
+          </div>
+          <div class="field">
+            <label for="regEmail">Email</label>
+            <input type="email" id="regEmail" required>
+          </div>
+          <div class="field">
+            <label for="regPhone">Mobile Number</label>
+            <input type="tel" id="regPhone" maxlength="10">
+            <div class="field-error" id="regPhoneErr">Enter a valid 10-digit mobile number.</div>
+          </div>
+          <div class="field">
+            <label for="regPassword">Password</label>
+            <input type="password" id="regPassword" required minlength="6">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block btn-lg" id="registerSubmitBtn">Create Account</button>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  import { supabase } from '/assets/js/supabase-client.js';
+  mountChrome('login');
+
+  const msgEl = document.getElementById('authMsg');
+  function showMsg(text, type) {
+    msgEl.textContent = text;
+    msgEl.className = `auth-msg ${type}`;
+  }
+  function clearMsg() { msgEl.className = 'auth-msg'; msgEl.textContent = ''; }
+
+  // Tabs
+  const tabLogin = document.getElementById('tabLogin');
+  const tabRegister = document.getElementById('tabRegister');
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  function selectTab(which) {
+    clearMsg();
+    const isLogin = which === 'login';
+    tabLogin.setAttribute('aria-selected', isLogin);
+    tabRegister.setAttribute('aria-selected', !isLogin);
+    loginForm.classList.toggle('active', isLogin);
+    registerForm.classList.toggle('active', !isLogin);
+  }
+  tabLogin.addEventListener('click', () => selectTab('login'));
+  tabRegister.addEventListener('click', () => selectTab('register'));
+
+  // Redirect target after login (e.g. came from a "Book a Test" flow)
+  const redirectTo = new URLSearchParams(location.search).get('redirect') || '/pages/my-bookings.html';
+
+  async function checkSession() {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) {
+      document.getElementById('authForms').style.display = 'none';
+      document.getElementById('alreadyLoggedIn').style.display = 'block';
+      document.getElementById('loggedInEmail').textContent = data.session.user.email;
+    }
+  }
+  checkSession();
+
+  document.getElementById('goToBookingsBtn').addEventListener('click', () => location.href = '/pages/my-bookings.html');
+  document.getElementById('signOutBtn').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    location.reload();
+  });
+
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearMsg();
+    const btn = document.getElementById('loginSubmitBtn');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    const { error } = await supabase.auth.signInWithPassword({
+      email: document.getElementById('loginEmail').value.trim(),
+      password: document.getElementById('loginPassword').value,
+    });
+    btn.disabled = false; btn.textContent = 'Login';
+    if (error) { showMsg(error.message, 'error'); return; }
+    location.href = redirectTo;
+  });
+
+  document.getElementById('forgotPasswordBtn').addEventListener('click', async () => {
+    const email = document.getElementById('loginEmail').value.trim();
+    if (!email) { showMsg('Enter your email above first, then click "Forgot password?" again.', 'error'); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) showMsg(error.message, 'error');
+    else showMsg('Password reset link sent — check your email.', 'success');
+  });
+
+  registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearMsg();
+    const phone = document.getElementById('regPhone').value.trim();
+    if (phone && !/^[6-9]\d{9}$/.test(phone)) {
+      document.getElementById('regPhoneErr').classList.add('show');
+      return;
+    }
+    document.getElementById('regPhoneErr').classList.remove('show');
+
+    const btn = document.getElementById('registerSubmitBtn');
+    btn.disabled = true; btn.textContent = 'Creating account…';
+    const { error } = await supabase.auth.signUp({
+      email: document.getElementById('regEmail').value.trim(),
+      password: document.getElementById('regPassword').value,
+      options: {
+        data: {
+          full_name: document.getElementById('regName').value.trim(),
+          phone,
+        },
+      },
+    });
+    btn.disabled = false; btn.textContent = 'Create Account';
+    if (error) { showMsg(error.message, 'error'); return; }
+    showMsg('Account created! Check your email to confirm, then log in.', 'success');
+    registerForm.reset();
+  });
+</script>
+</html>

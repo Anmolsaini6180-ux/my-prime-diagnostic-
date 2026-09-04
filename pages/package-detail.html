@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="pageTitle">Package Details | My Prime Diagnostic</title>
+<meta name="description" id="pageDesc" content="View package details, included tests, and pricing at My Prime Diagnostic.">
+<link rel="robots" content="noindex" id="robotsTag">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<style>
+  .pkg-detail-grid { display: grid; gap: 32px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .pkg-detail-grid { grid-template-columns: 1.6fr 1fr; } }
+  .pkg-sticky-buy { position: sticky; top: 90px; }
+  .pkg-tests-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+  .pkg-tests-list li { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; background: var(--gray-50); border-radius: 8px; font-size: 13.5px; }
+</style>
+</head>
+
+<div id="site-header"></div>
+
+<main id="main">
+  <div class="container" style="padding-top:32px;">
+    <a href="/pages/packages.html" style="font-size:13px;color:var(--text-muted);"><i class="fas fa-arrow-left"></i> Back to Packages</a>
+  </div>
+  <section class="section">
+    <div class="container" id="pkgDetailRoot">
+      <div class="state-block"><div class="state-icon">⏳</div><div class="state-title">Loading package…</div></div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script type="module">
+  import { mountChrome } from '/assets/js/shared-chrome.js';
+  import { fetchPackageBySlug } from '/assets/js/services/catalog.js';
+  mountChrome('packages');
+
+  const root = document.getElementById('pkgDetailRoot');
+  const slug = new URLSearchParams(location.search).get('slug');
+
+  function renderNotFound() {
+    root.innerHTML = `<div class="state-block">
+      <div class="state-icon">🔍</div>
+      <div class="state-title">Package not found</div>
+      <div class="state-desc">This package may have been removed or renamed.</div>
+      <div style="margin-top:16px;"><a href="/pages/packages.html" class="btn btn-primary">Browse All Packages</a></div>
+    </div>`;
+  }
+
+  function renderError(message) {
+    root.innerHTML = `<div class="state-block">
+      <div class="state-icon">⚠️</div>
+      <div class="state-title">Couldn't load this package</div>
+      <div class="state-desc">${message}</div>
+    </div>`;
+  }
+
+  function renderPackage(p) {
+    document.getElementById('pageTitle').textContent = `${p.name} | My Prime Diagnostic`;
+    document.getElementById('pageDesc').setAttribute('content', p.description || `${p.name} health package from My Prime Diagnostic.`);
+    document.getElementById('robotsTag').remove();
+
+    const testsHTML = p.tests.length
+      ? `<ul class="pkg-tests-list">${p.tests.map(t => `<li><span>${t.label}</span>${t.count > 1 ? `<span style="color:var(--text-muted);">×${t.count}</span>` : ''}</li>`).join('')}</ul>`
+      : '';
+    const featuresHTML = p.features.length
+      ? `<ul class="catalog-features">${p.features.map(f => `<li>${f}</li>`).join('')}</ul>`
+      : '';
+
+    root.innerHTML = `
+      <div class="pkg-detail-grid">
+        <div>
+          ${p.badge ? `<span class="badge badge-orange" style="margin-bottom:12px;">${p.badge}</span>` : ''}
+          <h1>${p.emoji || '💊'} ${p.name}</h1>
+          <p>${p.description || ''}</p>
+          <div class="meta-row">
+            ${p.sample_type ? `<span class="meta-item">🧪 Sample: <strong>${p.sample_type}</strong></span>` : ''}
+            ${p.report_time ? `<span class="meta-item">⏱️ Report: <strong>${p.report_time}</strong></span>` : ''}
+            ${p.preparation_required !== null ? `<span class="meta-item">⚠️ Preparation: <strong>${p.preparation_required ? 'Required' : 'Not required'}</strong></span>` : ''}
+          </div>
+          <h3 style="margin-top:24px;">${p.tests.length ? `📋 What's included (${p.tests.length} tests)` : "✅ What's included"}</h3>
+          ${testsHTML || featuresHTML}
+        </div>
+        <div>
+          <div class="card pkg-sticky-buy">
+            <div class="catalog-price-row">
+              <span class="catalog-price" style="font-size:34px;">₹${Number(p.price).toLocaleString('en-IN')}</span>
+              ${p.original_price ? `<span class="catalog-price-original">₹${Number(p.original_price).toLocaleString('en-IN')}</span>` : ''}
+            </div>
+            <p style="font-size:12.5px;">Free home sample collection included.</p>
+            <button class="btn btn-orange btn-block btn-lg" id="bookPkgBtn"><i class="fas fa-calendar-check"></i> Book This Package</button>
+            <p style="font-size:11px;text-align:center;margin-top:10px;color:var(--text-muted);">Multi-step booking launches soon — call us to book this package today.</p>
+            <a href="tel:+917428456590" class="btn btn-ghost btn-block"><i class="fas fa-phone"></i> +91 74284 56590</a>
+          </div>
+        </div>
+      </div>`;
+
+    // The multi-step booking wizard (patient details → address → schedule →
+    // review → confirm) is the next phase of this project (see
+    // BOOKING_FLOW.md) — not yet built, so this button is honest about
+    // that instead of linking to a page that doesn't exist yet.
+    document.getElementById('bookPkgBtn').addEventListener('click', () => {
+      alert(`Online booking for "${p.name}" is being finalized.\n\nFor now, please call +91 74284 56590 or WhatsApp us to book — we'll confirm your appointment right away.`);
+    });
+  }
+
+  async function load() {
+    if (!slug) return renderNotFound();
+    try {
+      const pkg = await fetchPackageBySlug(slug);
+      pkg ? renderPackage(pkg) : renderNotFound();
+    } catch (e) {
+      renderError(e.message || 'Please check your connection and try again.');
+    }
+  }
+
+  load();
+</script>
+</html>

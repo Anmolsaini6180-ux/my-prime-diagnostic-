@@ -1,0 +1,69 @@
+/* ============================================================
+   Design tokens — extracted from the existing index-1.html
+   (AUDIT.md §5). Kept identical on purpose: same brand, same feel,
+   just reused across real pages instead of one inline <style> block.
+   ============================================================ */
+:root {
+  /* Brand */
+  --blue: #04378A;
+  --blue-light: #3C63A4;
+  --blue-dark: #032A69;
+  --blue-pale: #F1F4F8;
+  --orange: #F16C0F;
+  --orange-light: #F4883D;
+  --orange-pale: #FEF0E7;
+  --white: #FFFFFF;
+
+  /* Text */
+  --text: #0F172A;
+  --text-muted: #64748B;
+
+  /* Surfaces */
+  --bg: #FFFFFF;
+  --card-bg: #FFFFFF;
+  --gray-50: #F8FAFC;
+  --gray-100: #F1F5F9;
+  --gray-200: #E2E8F0;
+  --gray-400: #94A3B8;
+
+  /* Status (shared with the tracker — see tracker-shared.js) */
+  --success: #16A34A;
+  --danger: #DC2626;
+  --warning: #D97706;
+
+  /* Layout */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --transition: 0.2s ease;
+  --container-max: 1200px;
+}
+
+/* Dark mode — same data-theme convention as the existing site.
+   "system" (no attribute) follows the OS; an explicit attribute wins. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #080F1E;
+    --card-bg: #0E1A30;
+    --text: #F0F6FF;
+    --text-muted: #94B4D1;
+    --blue-pale: #0D1E3A;
+    --orange-pale: #1F1208;
+    --gray-50: #0E1A30;
+    --gray-100: #14213D;
+    --gray-200: #1E2D4D;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #080F1E;
+  --card-bg: #0E1A30;
+  --text: #F0F6FF;
+  --text-muted: #94B4D1;
+  --blue-pale: #0D1E3A;
+  --orange-pale: #1F1208;
+  --gray-50: #0E1A30;
+  --gray-100: #14213D;
+  --gray-200: #1E2D4D;
+}
