@@ -3,6 +3,8 @@
 Companion to [AUDIT.md](AUDIT.md) §7/§9 and [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) §6. This document is the detailed field-level reference for the booking experience.
 
 > **Status: the multi-step wizard described in §3, and the Track Booking design in §6, are now built, tested, and live against Supabase** — see [BOOKING_IMPLEMENTATION.md](BOOKING_IMPLEMENTATION.md) for what was actually verified. §1-2 below remain as the historical record of the *original Firebase app's* flow (still running, untouched, in `index-1.html`); §3-8 have been updated from "proposed" to "as-built" where the design was carried through unchanged, with actual deviations called out explicitly.
+>
+> **Superseding update**: the new (Supabase-backed) wizard now requires login before a booking can be created — a deliberate change from the "guest bookings are real" position in §6.2 below, made explicit for this phase and enforced at both the RPC level (`create_booking()` rejects a null session outright) and the UI level (the wizard's entry point redirects to Login, preserving the draft, and returns the visitor to exactly where they left off). See [SECURITY.md §2.3](SECURITY.md) for the fix and its live verification. This does **not** apply to admin-created bookings (Admin Add Booking / WhatsApp Booking) — staff are always authenticated as themselves and book *on behalf of* a patient who may have no account at all, which is a different, still-supported case (see ADMIN_MIGRATION_MAP.md §3).
 
 ---
 

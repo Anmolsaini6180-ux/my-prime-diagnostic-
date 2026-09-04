@@ -4,7 +4,7 @@ A NABL-certified diagnostic lab's public website — plain HTML/CSS/JS (no build
 
 ## Status
 
-This is an active, in-progress rebuild. **Public catalog browsing, patient auth, the full multi-step booking wizard, the public tracker, and Realtime status updates are real, live, and tested end-to-end against Supabase.** **A real admin panel now exists too** (`admin/`) — staff login with RBAC enforcement, a Dashboard with real KPIs, and full Bookings/Booking Tracker management wired to the same Supabase backend — see [BOOKING_IMPLEMENTATION.md](BOOKING_IMPLEMENTATION.md) and [ADMIN_MIGRATION_MAP.md](ADMIN_MIGRATION_MAP.md) for exactly what's verified vs. still pending (most admin modules — Tests/Packages/Coupons/Staff/Reports/Cash Flow/Settings — are not built yet). **The approved Super Admin (`anmolsaini6180@gmail.com`) is now bootstrapped at the database level** (never a frontend check — see [SECURITY.md §2.2](SECURITY.md)), and **Google OAuth login is code-complete on both login pages but not yet functional** — it needs two Dashboard-only configuration steps only the project owner can perform, documented in [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md); until then, only email/password login works end-to-end. **Firebase and Supabase are currently two separate, non-synced systems** — see [MIGRATION_STATUS.md](MIGRATION_STATUS.md). Nothing in this repo pretends to be finished when it isn't.
+This is an active, in-progress rebuild. **Public catalog browsing, patient auth, the full multi-step booking wizard (now login-required — see below), the public tracker, and Realtime status updates are real, live, and tested end-to-end against Supabase.** **A real, extensive admin panel now exists** (`admin/`) — Dashboard, Bookings (view/edit/assign agent), Booking Tracker, Add Booking, WhatsApp Booking, Tests/Packages/Coupons management, Team Management (with a real staff-invite Edge Function), Users, Reports (with CSV export), Analytics, Activity Log, and Settings — all wired to the same Supabase backend with real RBAC. See [ADMIN_MIGRATION_MAP.md](ADMIN_MIGRATION_MAP.md) for exactly what's verified vs. still pending (Cash Flow and the Cloudinary-backed Reports table remain out of scope). **A booking can no longer be created by a logged-out visitor** — this was found to be a real, live gap and fixed at both the database and UI level, see [SECURITY.md §2.3](SECURITY.md). **The approved Super Admin (`anmolsaini6180@gmail.com`) is bootstrapped at the database level and now absolutely protected from demotion** (never a frontend check — see [SECURITY.md §2.2/§2.4](SECURITY.md)), and **Google OAuth login is code-complete on both login pages but not yet functional** — it needs two Dashboard-only configuration steps only the project owner can perform, documented in [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md); until then, only email/password login works end-to-end. **Firebase and Supabase are currently two separate, non-synced systems** — see [MIGRATION_STATUS.md](MIGRATION_STATUS.md). Nothing in this repo pretends to be finished when it isn't.
 
 **Branding note**: the real My Prime Diagnostic logo has been shared but not yet received as a file (see MIGRATION_STATUS.md / the latest session notes) — the site currently uses a placeholder 🏥 emoji mark everywhere a real logo asset belongs. Design tokens (`assets/css/tokens.css`) already closely match the logo's navy/orange palette (sourced from the original site's own CSS), pending exact pixel-level confirmation once the file is available.
 
@@ -31,17 +31,24 @@ assets/js/
   booking-draft.js           Cross-page booking state (sessionStorage) + stepper/summary-rail rendering
   tracker-shared.js          The one place stage keys/labels/colors are defined — public tracker and (later) admin both import this
   post-login-redirect.js     The one place "where does this session belong" is decided (patient vs. staff), shared by both login pages
+  whatsapp-helper.js         Builds the wa.me click-to-chat link + confirmation message (customer + admin) — never auto-sends anything
+  whatsapp-parser.js         "Smart Paste" parser for WhatsApp Booking — conservative, flags fields it isn't sure of instead of guessing
+  admin-ui.js                Shared toast notifications + confirm-dialog used by every admin write action
   services/catalog.js        The only place that queries packages/tests from Supabase
   services/bookings.js       The only place that calls the booking RPCs (create_booking, track_booking, etc.)
+  services/settings.js       Reads/writes app_settings — the only place that does
+  services/team.js           Staff queries + the only caller of the admin-create-staff Edge Function
 supabase/
   migrations/                Every schema change, in order — see DATABASE.md
   seed/                      Real catalog + slot data ported from index-1.html (not synthetic)
-admin/                       Staff panel: login, dashboard, bookings, tracker (real Supabase data + RLS-enforced)
-assets/css/admin.css         Admin shell (sidebar/topbar/tables/tracker board), same tokens as the public site
+  functions/admin-create-staff/  The only code in this project that touches the Supabase Admin API — see SECURITY.md §2.5
+admin/                       Staff panel — see ADMIN_MIGRATION_MAP.md for the full module list (Dashboard, Bookings, Tracker, Add Booking,
+                              WhatsApp Booking, Tests, Packages, Coupons, Users, Team Management, Reports, Analytics, Activity Log, Settings)
+assets/css/admin.css         Admin shell (sidebar/topbar/tables/tracker board/toasts/confirm dialogs), same tokens as the public site
 assets/js/admin-guard.js     Real session+role check every admin page calls first (redirects non-staff, deactivated staff)
-assets/js/admin-shell.js     Shared admin sidebar/topbar, only links to modules that actually exist
-assets/js/admin-booking-detail-modal.js  Shared booking-detail-with-stage-update modal (used by Bookings and Tracker)
-assets/js/services/admin-bookings.js     Admin booking queries — relies entirely on RLS for role scoping, no client-side filtering duplicated
+assets/js/admin-shell.js     Shared admin sidebar/topbar — nav items are filtered per-role before rendering, mirroring real RLS/RPC access
+assets/js/admin-booking-detail-modal.js  Shared booking-detail view + edit + assign-agent + stage-update modal (used by Bookings and Tracker)
+assets/js/services/admin-bookings.js     Admin booking queries/RPCs — relies entirely on RLS for role scoping, no client-side filtering duplicated
 index-1.html                 Legacy Firebase-backed app — everything not yet in admin/ still lives here
 ```
 
