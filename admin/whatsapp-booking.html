@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WhatsApp Booking | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/booking.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+<style>
+  .wb-card { background: var(--card-bg); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 20px; margin-bottom: 16px; max-width: 720px; }
+  .wb-card h3 { font-size: 14px; margin-bottom: 14px; }
+  .wb-row { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 640px) { .wb-row { grid-template-columns: 1fr; } }
+  #pasteBox { width: 100%; min-height: 140px; font-family: inherit; font-size: 13px; padding: 12px; border: 1.5px solid var(--gray-200); border-radius: 8px; box-sizing: border-box; }
+  .needs-confirm { border-color: var(--orange) !important; background: var(--orange-pale); }
+  .needs-confirm-tag { font-size: 10.5px; color: var(--orange); font-weight: 700; margin-left: 6px; }
+  .wb-item-pick { display: flex; justify-content: space-between; padding: 8px 10px; border: 1.5px solid var(--gray-200); border-radius: 8px; margin-bottom: 5px; cursor: pointer; font-size: 12.5px; }
+  .wb-item-pick.selected { border-color: var(--blue); background: var(--blue-pale); }
+  #reviewSection { display: none; }
+</style>
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+
+      <div class="wb-card">
+        <h3>1. Paste WhatsApp Message</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">Paste the customer's message (e.g. "Name: ... / Phone: ... / Test: ... / Collection: ... / Address: ... / Date: ... / Time: ..."). Nothing is booked yet — you'll review every field first.</p>
+        <textarea id="pasteBox" placeholder="Name: Anmol Saini&#10;Phone: 9876543210&#10;Age: 20&#10;Gender: Male&#10;Test: Full Body Health Checkup&#10;Collection: Home Collection&#10;Address: XYZ, Sector 62, Noida - 201301&#10;Date: 10 Sept&#10;Time: 10 AM"></textarea>
+        <button type="button" class="btn btn-primary" id="parseBtn" style="margin-top:10px;"><i class="fas fa-wand-magic-sparkles"></i> Parse Details</button>
+        <div id="parseStatus" style="font-size:12.5px;margin-top:8px;"></div>
+      </div>
+
+      <div id="reviewSection">
+        <div class="wb-card">
+          <h3>2. Review &amp; Edit Extracted Details <span style="font-weight:400;font-size:11.5px;color:var(--text-muted);">— nothing is saved until you click Create Booking</span></h3>
+          <div class="wb-row">
+            <div class="field"><label>Full Name *</label><input type="text" id="pName"></div>
+            <div class="field"><label>Mobile Number *</label><input type="tel" id="pPhone" maxlength="10"></div>
+          </div>
+          <div class="wb-row">
+            <div class="field"><label>Age (optional)</label><input type="number" id="pAge" min="0" max="120"></div>
+            <div class="field"><label>Gender (optional)</label><select id="pGender"><option value="">Prefer not to say</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>
+          </div>
+        </div>
+
+        <div class="wb-card">
+          <h3>3. Match to Catalogue Item *</h3>
+          <div id="parsedItemHint" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
+          <input type="search" id="itemSearch" placeholder="Search tests &amp; packages…" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--gray-200);border-radius:8px;margin-bottom:10px;font-size:13px;">
+          <div id="itemListRoot" style="max-height:220px;overflow-y:auto;"></div>
+        </div>
+
+        <div class="wb-card">
+          <h3>4. Collection Type</h3>
+          <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr;">
+            <div id="colHome" style="border:2px solid var(--gray-200);border-radius:var(--radius-md);padding:14px;text-align:center;cursor:pointer;">🏠<br>Home Collection</div>
+            <div id="colLab" style="border:2px solid var(--gray-200);border-radius:var(--radius-md);padding:14px;text-align:center;cursor:pointer;">🏥<br>Walk-in at Lab</div>
+          </div>
+          <div id="addressFields" style="margin-top:14px;">
+            <div class="field"><label>Address Line *</label><input type="text" id="addrLine"></div>
+            <div class="wb-row">
+              <div class="field"><label>City</label><input type="text" id="addrCity"></div>
+              <div class="field"><label>Pincode *</label><input type="text" id="addrPin" maxlength="6"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="wb-card">
+          <h3>5. Date &amp; Time <span id="parsedDateHint" class="needs-confirm-tag"></span></h3>
+          <div class="wb-row">
+            <div class="field"><label>Date *</label><input type="date" id="schedDate"></div>
+            <div class="field"><label>Time Slot *</label><select id="schedSlot"><option value="">Pick a date first</option></select></div>
+          </div>
+        </div>
+
+        <div class="wb-card">
+          <h3>6. Confirm</h3>
+          <div class="review-row"><span>Amount</span><span id="revAmount" style="font-weight:700;">₹0</span></div>
+          <p style="font-size:11.5px;color:var(--text-muted);margin:8px 0;">Pay Later (cash at collection) — no online payment gateway exists in this system.</p>
+          <div id="submitMsg" style="font-size:13px;margin:8px 0;"></div>
+          <button type="button" class="btn btn-orange btn-block btn-lg" id="createBtn"><i class="fas fa-calendar-check"></i> Create Booking</button>
+        </div>
+
+        <div class="wb-card" id="waSendCard" style="display:none;">
+          <h3>7. Send Confirmation to Patient</h3>
+          <button type="button" class="btn btn-outline btn-block" id="waSendBtn" style="border-color:#25D366;color:#25D366;"><i class="fab fa-whatsapp"></i> Send WhatsApp Confirmation</button>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Opens WhatsApp with a pre-filled message for you to send — this does not send automatically (no WhatsApp Business API is integrated).</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { fetchTests, fetchPackages } from '/assets/js/services/catalog.js';
+  import { fetchSlotAvailability, submitBooking } from '/assets/js/services/bookings.js';
+  import { fetchSettings } from '/assets/js/services/settings.js';
+  import { parseWhatsAppBooking } from '/assets/js/whatsapp-parser.js';
+  import { buildBookingConfirmationMessage, buildWhatsAppLink } from '/assets/js/whatsapp-helper.js';
+  import { showToast } from '/assets/js/admin-ui.js';
+
+  const session = await requireStaffSession();
+  if (!session) { /* redirected */ }
+  else if (!['main_admin', 'sub_admin'].includes(session.role)) {
+    document.querySelector('.admin-content').innerHTML = `<div class="state-block"><div class="state-icon">🔒</div><div class="state-title">Not available for your role</div></div>`;
+  } else {
+    mountAdminShell({ currentKey: 'whatsapp-booking', title: 'WhatsApp Booking', profile: session.profile });
+    init();
+  }
+
+  let catalogItems = [];
+  let selectedItem = null;
+  let collectionType = 'home';
+  let lastCreatedBooking = null;
+
+  async function init() {
+    try {
+      const [tests, packages] = await Promise.all([fetchTests(), fetchPackages()]);
+      catalogItems = [
+        ...tests.map(t => ({ id: t.id, name: t.name, price: t.price, type: 'test' })),
+        ...packages.map(p => ({ id: p.id, name: p.name, price: p.price, type: 'package' })),
+      ];
+    } catch (e) { showToast('Could not load catalogue: ' + e.message, 'error'); }
+
+    document.getElementById('parseBtn').addEventListener('click', doParse);
+    document.getElementById('itemSearch').addEventListener('input', () => renderItemList(document.getElementById('itemSearch').value));
+    document.getElementById('colHome').addEventListener('click', () => setCollectionType('home'));
+    document.getElementById('colLab').addEventListener('click', () => setCollectionType('lab_visit'));
+    document.getElementById('schedDate').min = new Date().toISOString().split('T')[0];
+    document.getElementById('schedDate').addEventListener('change', loadSlots);
+    document.getElementById('createBtn').addEventListener('click', createBooking);
+  }
+
+  function setCollectionType(type) {
+    collectionType = type;
+    document.getElementById('colHome').style.borderColor = type === 'home' ? 'var(--blue)' : 'var(--gray-200)';
+    document.getElementById('colLab').style.borderColor = type === 'lab_visit' ? 'var(--blue)' : 'var(--gray-200)';
+    document.getElementById('addressFields').style.display = type === 'home' ? 'block' : 'none';
+  }
+
+  function doParse() {
+    const raw = document.getElementById('pasteBox').value;
+    if (!raw.trim()) { document.getElementById('parseStatus').textContent = '⚠️ Paste the message first.'; return; }
+    const { fields, needsConfirmation } = parseWhatsAppBooking(raw);
+
+    document.getElementById('pName').value = fields.name;
+    document.getElementById('pPhone').value = fields.phone;
+    document.getElementById('pAge').value = fields.age;
+    document.getElementById('pGender').value = fields.gender;
+    document.getElementById('addrLine').value = fields.address;
+    document.getElementById('addrPin').value = fields.pincode;
+    document.getElementById('parsedItemHint').textContent = fields.itemName ? `Parsed as: "${fields.itemName}" — find and select the matching catalogue item below.` : 'Could not identify a test/package from the message — search and select below.';
+    document.getElementById('itemSearch').value = fields.itemName;
+    document.getElementById('parsedDateHint').textContent = (fields.dateHint || fields.timeHint) ? `Message said: "${fields.dateHint} ${fields.timeHint}" — pick the real date/slot below` : '';
+    setCollectionType(fields.collectionType || 'home');
+    renderItemList(fields.itemName);
+
+    ['pName', 'pPhone'].forEach((id, i) => {
+      const key = i === 0 ? 'Patient Name' : 'Phone';
+      document.getElementById(id).classList.toggle('needs-confirm', needsConfirmation.includes(key));
+    });
+
+    document.getElementById('reviewSection').style.display = 'block';
+    document.getElementById('parseStatus').innerHTML = needsConfirmation.length
+      ? `⚠️ Filled what could be found. <strong>Needs confirmation:</strong> ${needsConfirmation.join(', ')} — check the highlighted/empty fields below before creating.`
+      : '✅ All fields extracted — please review below.';
+    document.getElementById('reviewSection').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function renderItemList(filter) {
+    const f = (filter || '').toLowerCase();
+    const items = f ? catalogItems.filter(i => i.name.toLowerCase().includes(f)) : catalogItems;
+    const root = document.getElementById('itemListRoot');
+    root.innerHTML = items.slice(0, 30).map(it => `
+      <div class="wb-item-pick" data-id="${it.id}" data-type="${it.type}" data-name="${it.name}" data-price="${it.price}">
+        <span>${it.name} <span style="color:var(--text-muted);">(${it.type})</span></span><span>₹${Number(it.price).toLocaleString('en-IN')}</span>
+      </div>`).join('') || '<p style="font-size:12px;color:var(--text-muted);">No match — try a different search term.</p>';
+    root.querySelectorAll('.wb-item-pick').forEach(el => {
+      el.addEventListener('click', () => {
+        root.querySelectorAll('.wb-item-pick').forEach(x => x.classList.remove('selected'));
+        el.classList.add('selected');
+        selectedItem = { itemType: el.dataset.type, itemId: el.dataset.id, itemName: el.dataset.name, itemPrice: Number(el.dataset.price) };
+        document.getElementById('revAmount').textContent = '₹' + selectedItem.itemPrice.toLocaleString('en-IN');
+      });
+    });
+  }
+
+  async function loadSlots() {
+    const date = document.getElementById('schedDate').value;
+    const sel = document.getElementById('schedSlot');
+    if (!date) return;
+    sel.innerHTML = '<option>Loading…</option>';
+    try {
+      const slots = await fetchSlotAvailability(date);
+      sel.innerHTML = slots.map(s => `<option value="${s.slot_id}" ${!s.is_available ? 'disabled' : ''}>${s.label}${!s.is_available ? ' — Full' : ''}</option>`).join('');
+    } catch (e) { sel.innerHTML = '<option>Could not load slots</option>'; }
+  }
+
+  let submitting = false;
+  async function createBooking() {
+    const msgEl = document.getElementById('submitMsg');
+    msgEl.textContent = ''; msgEl.style.color = '';
+    const name = document.getElementById('pName').value.trim();
+    const phone = document.getElementById('pPhone').value.trim();
+    if (!/^[a-zA-Z\s]{2,}$/.test(name)) { msgEl.textContent = 'Enter a valid patient name.'; msgEl.style.color = 'var(--danger)'; return; }
+    if (!/^[6-9]\d{9}$/.test(phone)) { msgEl.textContent = 'Enter a valid 10-digit mobile number.'; msgEl.style.color = 'var(--danger)'; return; }
+    if (!selectedItem) { msgEl.textContent = 'Select the matching catalogue item.'; msgEl.style.color = 'var(--danger)'; return; }
+    const date = document.getElementById('schedDate').value;
+    const slotId = document.getElementById('schedSlot').value;
+    if (!date || !slotId) { msgEl.textContent = 'Choose a date and time slot.'; msgEl.style.color = 'var(--danger)'; return; }
+    if (collectionType === 'home') {
+      const line = document.getElementById('addrLine').value.trim();
+      const pin = document.getElementById('addrPin').value.trim();
+      if (!line || !/^\d{6}$/.test(pin)) { msgEl.textContent = 'Enter a complete address with a valid 6-digit pincode.'; msgEl.style.color = 'var(--danger)'; return; }
+    }
+    if (submitting) return;
+    submitting = true;
+    const btn = document.getElementById('createBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating…';
+
+    try {
+      const draft = {
+        itemType: selectedItem.itemType, itemId: selectedItem.itemId, itemName: selectedItem.itemName, itemPrice: selectedItem.itemPrice,
+        patientName: name, patientPhone: phone, patientEmail: null,
+        patientDob: null, patientGender: document.getElementById('pGender').value || null,
+        collectionType,
+        address: collectionType === 'home' ? {
+          addressLine: document.getElementById('addrLine').value.trim(),
+          city: document.getElementById('addrCity').value.trim(),
+          pincode: document.getElementById('addrPin').value.trim(),
+          landmark: '',
+        } : null,
+        scheduledDate: date, slotId, couponCode: null, paymentMode: 'offline',
+        idempotencyKey: crypto.randomUUID(), source: 'whatsapp',
+      };
+      const result = await submitBooking(draft);
+      lastCreatedBooking = { ...draft, bookingCode: result.booking_code, finalAmount: result.final_amount, slotLabel: document.getElementById('schedSlot').selectedOptions[0]?.textContent };
+      showToast(`Booking ${result.booking_code} created`, 'success');
+      msgEl.innerHTML = `✅ Booking <strong>${result.booking_code}</strong> created — ₹${Number(result.final_amount).toLocaleString('en-IN')}. <a href="/admin/bookings.html?code=${result.booking_code}">Open it</a>.`;
+      msgEl.style.color = 'var(--success)';
+      btn.innerHTML = '<i class="fas fa-check"></i> Created';
+      document.getElementById('waSendCard').style.display = 'block';
+    } catch (e) {
+      showToast(e.message || 'Could not create booking.', 'error');
+      msgEl.textContent = '❌ ' + (e.message || 'Could not create booking.');
+      msgEl.style.color = 'var(--danger)';
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-calendar-check"></i> Create Booking';
+      submitting = false;
+    }
+  }
+
+  document.getElementById('waSendBtn').addEventListener('click', async () => {
+    if (!lastCreatedBooking) return;
+    let supportPhone;
+    try { supportPhone = (await fetchSettings()).support_phone; } catch (e) {}
+    const b = lastCreatedBooking;
+    const message = buildBookingConfirmationMessage({
+      bookingCode: b.bookingCode, patientName: b.patientName, itemName: b.itemName,
+      collectionType: b.collectionType, dateStr: new Date(b.scheduledDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+      slotLabel: b.slotLabel, amount: b.finalAmount,
+      addressLine: b.address?.addressLine, city: b.address?.city, pincode: b.address?.pincode,
+      supportPhone,
+    });
+    window.open(buildWhatsAppLink(b.patientPhone, message), '_blank', 'noopener');
+  });
+</script>
+</html>
