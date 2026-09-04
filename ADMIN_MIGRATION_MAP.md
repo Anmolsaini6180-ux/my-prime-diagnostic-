@@ -15,6 +15,8 @@ Every admin feature that exists today in `index-1.html` (per [AUDIT.md §11-12](
 | Booking ownership scoping (`attachBookingOwnership`, `_bookingsQueryForCurrentRole`) | RLS policies on `bookings` + children (Phase 2) | ✅ |
 | Admin-only internal helpers exposed via public RPC (security gap) | Relocated to `private` schema (Phase 3, migration 0008) | ✅ |
 | Admin app shell (login gate, sidebar, layout) | `admin/` — this phase | ✅ (built this session) |
+| Super Admin (Head-Admin) bootstrap for a specific real email, DB-enforced | `private.owner_emails()` + `private.sync_owner_admins()` (Phase 4, migration 0009/0009b) | ✅ — see SECURITY.md §2.2 |
+| Google OAuth login (admin + public), role-based post-login redirect | `admin/login.html` + `pages/login.html` + `assets/js/post-login-redirect.js` (Phase 4) | 🚧 — code complete, client-side wiring verified reaching Supabase correctly; full consent-flow **not yet tested**, blocked on Dashboard config only the project owner can do (see [GOOGLE_OAUTH_SETUP.md](GOOGLE_OAUTH_SETUP.md)) |
 
 ## 2. Dashboard
 
