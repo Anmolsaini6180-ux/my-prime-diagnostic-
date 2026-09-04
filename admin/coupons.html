@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coupons | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+      <div id="readonlyBanner"></div>
+      <div class="admin-toolbar">
+        <h3 style="margin:0;flex:1;font-size:16px;">Coupons</h3>
+        <button type="button" class="btn btn-primary" id="addBtn" style="display:none;"><i class="fas fa-plus"></i> Add Coupon</button>
+      </div>
+      <div class="admin-table-wrap"><div id="listRoot" style="overflow-x:auto;"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="admin-modal-backdrop" id="modalBackdrop">
+  <div class="admin-modal">
+    <button class="admin-modal-close" id="modalClose">&times;</button>
+    <h3 id="modalTitle">Add Coupon</h3>
+    <div class="field"><label>Code * (auto-uppercased)</label><input type="text" id="fCode" style="text-transform:uppercase;"></div>
+    <div style="display:grid;gap:12px;grid-template-columns:1fr 1fr;">
+      <div class="field"><label>Type *</label><select id="fType"><option value="percent">Percent (%)</option><option value="flat">Flat (₹)</option></select></div>
+      <div class="field"><label>Value *</label><input type="number" id="fValue" min="0" step="0.01"></div>
+    </div>
+    <div style="display:grid;gap:12px;grid-template-columns:1fr 1fr;">
+      <div class="field"><label>Min Booking Amount (₹, optional)</label><input type="number" id="fMinAmount" min="0" step="0.01"></div>
+      <div class="field"><label>Usage Limit (optional)</label><input type="number" id="fUsageLimit" min="1"></div>
+    </div>
+    <div class="field"><label>Expiry Date (optional)</label><input type="date" id="fExpiresAt"></div>
+    <div class="field"><label><input type="checkbox" id="fActive" checked style="width:auto;margin-right:6px;"> Active</label></div>
+    <div id="formMsg" style="font-size:13px;margin-bottom:10px;"></div>
+    <button type="button" class="btn btn-primary btn-block" id="saveBtn">Save</button>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { supabase } from '/assets/js/supabase-client.js';
+  import { showToast, confirmDialog } from '/assets/js/admin-ui.js';
+
+  const session = await requireStaffSession();
+  const isMainAdmin = session?.role === 'main_admin';
+  if (session) {
+    mountAdminShell({ currentKey: 'coupons', title: 'Coupons', profile: session.profile });
+    if (!isMainAdmin) {
+      // Coupons has no public/sub_admin read RLS policy at all (main_admin-only
+      // by design, see SECURITY.md §4 — the code list must never be
+      // scrapeable) — a sub_admin genuinely cannot see this data, so
+      // there is no read-only view to show here, unlike Tests/Packages.
+      document.querySelector('.admin-content').innerHTML = `<div class="state-block"><div class="state-icon">🔒</div><div class="state-title">Main Admin only</div><div class="state-desc">Coupon codes are never exposed beyond Main Admin, even read-only — the full list must never be scrapeable (see SECURITY.md §4).</div></div>`;
+    } else {
+      document.getElementById('addBtn').style.display = 'inline-flex';
+      document.getElementById('addBtn').addEventListener('click', () => openModal(null));
+      load();
+    }
+  }
+
+  let allCoupons = [];
+  async function load() {
+    const root = document.getElementById('listRoot');
+    root.innerHTML = `<div class="state-block"><div class="state-icon">⏳</div></div>`;
+    try {
+      const { data, error } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      allCoupons = data || [];
+      render();
+    } catch (e) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-desc">${e.message}</div></div>`;
+    }
+  }
+
+  function render() {
+    const root = document.getElementById('listRoot');
+    if (!allCoupons.length) { root.innerHTML = `<div class="state-block"><div class="state-icon">🏷️</div><div class="state-title">No coupons yet</div></div>`; return; }
+    const today = new Date().toISOString().split('T')[0];
+    root.innerHTML = `<table class="admin-table"><thead><tr><th>Code</th><th>Discount</th><th>Min Amount</th><th>Usage</th><th>Expiry</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+      ${allCoupons.map(c => {
+        const expired = c.expires_at && c.expires_at < today;
+        return `<tr>
+          <td data-label="Code"><strong>${c.code}</strong></td>
+          <td data-label="Discount">${c.type === 'percent' ? c.value + '%' : '₹' + c.value}</td>
+          <td data-label="Min Amount">${c.min_amount ? '₹' + c.min_amount : '—'}</td>
+          <td data-label="Usage">${c.used_count}${c.usage_limit ? ' / ' + c.usage_limit : ''}</td>
+          <td data-label="Expiry">${c.expires_at || '—'} ${expired ? '<span class="badge badge-gray">Expired</span>' : ''}</td>
+          <td data-label="Status"><span class="badge ${c.active && !expired ? 'badge-green' : 'badge-gray'}">${c.active ? 'Active' : 'Inactive'}</span></td>
+          <td data-label="Actions">
+            <button type="button" class="btn btn-ghost editBtn" data-code="${c.code}" style="font-size:11.5px;padding:5px 8px;">Edit</button>
+            <button type="button" class="btn btn-ghost toggleBtn" data-code="${c.code}" data-active="${c.active}" style="font-size:11.5px;padding:5px 8px;color:${c.active ? 'var(--danger)' : 'var(--success)'};">${c.active ? 'Deactivate' : 'Activate'}</button>
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody></table>`;
+
+    root.querySelectorAll('.editBtn').forEach(b => b.addEventListener('click', () => openModal(allCoupons.find(c => c.code === b.dataset.code))));
+    root.querySelectorAll('.toggleBtn').forEach(b => b.addEventListener('click', async () => {
+      const willActivate = b.dataset.active === 'false';
+      const confirmed = await confirmDialog(`${willActivate ? 'Activate' : 'Deactivate'} coupon ${b.dataset.code}?`, { confirmLabel: willActivate ? 'Activate' : 'Deactivate', danger: !willActivate });
+      if (!confirmed) return;
+      try {
+        const { error } = await supabase.from('coupons').update({ active: willActivate }).eq('code', b.dataset.code);
+        if (error) throw error;
+        showToast(willActivate ? 'Coupon activated' : 'Coupon deactivated', 'success');
+        load();
+      } catch (e) { showToast(e.message, 'error'); }
+    }));
+  }
+
+  let editingCode = null;
+  function openModal(c) {
+    editingCode = c?.code || null;
+    document.getElementById('modalTitle').textContent = c ? 'Edit Coupon' : 'Add Coupon';
+    document.getElementById('fCode').value = c?.code || '';
+    document.getElementById('fCode').disabled = !!c; // code is the primary key — not editable after creation
+    document.getElementById('fType').value = c?.type || 'percent';
+    document.getElementById('fValue').value = c?.value || '';
+    document.getElementById('fMinAmount').value = c?.min_amount || '';
+    document.getElementById('fUsageLimit').value = c?.usage_limit || '';
+    document.getElementById('fExpiresAt').value = c?.expires_at || '';
+    document.getElementById('fActive').checked = c ? c.active : true;
+    document.getElementById('formMsg').textContent = '';
+    document.getElementById('modalBackdrop').classList.add('open');
+  }
+  document.getElementById('modalClose').addEventListener('click', () => document.getElementById('modalBackdrop').classList.remove('open'));
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    const msgEl = document.getElementById('formMsg');
+    const code = document.getElementById('fCode').value.trim().toUpperCase();
+    const value = Number(document.getElementById('fValue').value);
+    if (!code || !(value > 0)) { msgEl.textContent = 'Code and a positive value are required.'; msgEl.style.color = 'var(--danger)'; return; }
+    if (document.getElementById('fType').value === 'percent' && value > 100) { msgEl.textContent = 'A percent discount cannot exceed 100.'; msgEl.style.color = 'var(--danger)'; return; }
+
+    const payload = {
+      code, type: document.getElementById('fType').value, value,
+      min_amount: document.getElementById('fMinAmount').value ? Number(document.getElementById('fMinAmount').value) : null,
+      usage_limit: document.getElementById('fUsageLimit').value ? Number(document.getElementById('fUsageLimit').value) : null,
+      expires_at: document.getElementById('fExpiresAt').value || null,
+      active: document.getElementById('fActive').checked,
+    };
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const { error } = editingCode
+        ? await supabase.from('coupons').update(payload).eq('code', editingCode)
+        : await supabase.from('coupons').insert(payload);
+      if (error) throw error;
+      showToast(editingCode ? 'Coupon updated' : 'Coupon created', 'success');
+      document.getElementById('modalBackdrop').classList.remove('open');
+      load();
+    } catch (e) {
+      msgEl.textContent = '❌ ' + (e.message.includes('duplicate') ? 'This code already exists.' : e.message);
+      msgEl.style.color = 'var(--danger)';
+    }
+    btn.disabled = false; btn.textContent = 'Save';
+  });
+</script>
+</html>

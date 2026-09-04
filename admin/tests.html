@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tests | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+      <div id="readonlyBanner"></div>
+      <div class="admin-toolbar">
+        <div class="catalog-search" style="max-width:280px;"><i class="fas fa-search" style="color:var(--text-muted);"></i><input type="search" id="searchInput" placeholder="Search tests…"></div>
+        <button type="button" class="btn btn-primary" id="addBtn" style="margin-left:auto;display:none;"><i class="fas fa-plus"></i> Add Test</button>
+      </div>
+      <div class="admin-table-wrap"><div id="listRoot" style="overflow-x:auto;"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="admin-modal-backdrop" id="modalBackdrop">
+  <div class="admin-modal">
+    <button class="admin-modal-close" id="modalClose">&times;</button>
+    <h3 id="modalTitle">Add Test</h3>
+    <div class="field"><label>Name *</label><input type="text" id="fName"></div>
+    <div class="field"><label>Slug * (URL-safe, e.g. cbc-test)</label><input type="text" id="fSlug"></div>
+    <div class="field"><label>Category</label><input type="text" id="fCategory"></div>
+    <div class="field"><label>Price (₹) *</label><input type="number" id="fPrice" min="0" step="0.01"></div>
+    <div class="field"><label>Sample Type</label><input type="text" id="fSampleType" placeholder="e.g. Blood"></div>
+    <div class="field"><label>Description</label><textarea id="fDescription" style="width:100%;box-sizing:border-box;"></textarea></div>
+    <div class="field"><label>Preparation Instructions</label><textarea id="fPreparation" style="width:100%;box-sizing:border-box;"></textarea></div>
+    <div class="field"><label><input type="checkbox" id="fActive" checked style="width:auto;margin-right:6px;"> Active (visible on public site)</label></div>
+    <div id="formMsg" style="font-size:13px;margin-bottom:10px;"></div>
+    <button type="button" class="btn btn-primary btn-block" id="saveBtn">Save</button>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { supabase } from '/assets/js/supabase-client.js';
+  import { showToast, confirmDialog } from '/assets/js/admin-ui.js';
+
+  const session = await requireStaffSession();
+  const isMainAdmin = session?.role === 'main_admin';
+  if (session) {
+    mountAdminShell({ currentKey: 'tests', title: 'Tests', profile: session.profile });
+    if (isMainAdmin) {
+      document.getElementById('addBtn').style.display = 'inline-flex';
+      document.getElementById('addBtn').addEventListener('click', () => openModal(null));
+    } else {
+      document.getElementById('readonlyBanner').innerHTML = `<div class="admin-readonly-banner"><i class="fas fa-eye"></i> Read-only — only Main Admin can add, edit, or deactivate tests.</div>`;
+    }
+    load();
+  }
+
+  let allTests = [];
+  async function load() {
+    const root = document.getElementById('listRoot');
+    root.innerHTML = `<div class="state-block"><div class="state-icon">⏳</div></div>`;
+    try {
+      const { data, error } = await supabase.from('tests').select('*').order('sort_order');
+      if (error) throw error;
+      allTests = data || [];
+      render();
+    } catch (e) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-desc">${e.message}</div></div>`;
+    }
+  }
+
+  function render() {
+    const q = document.getElementById('searchInput').value.trim().toLowerCase();
+    const items = q ? allTests.filter(t => t.name.toLowerCase().includes(q) || (t.category || '').toLowerCase().includes(q)) : allTests;
+    const root = document.getElementById('listRoot');
+    if (!items.length) { root.innerHTML = `<div class="state-block"><div class="state-icon">🧪</div><div class="state-title">No tests found</div></div>`; return; }
+    root.innerHTML = `<table class="admin-table"><thead><tr><th>Name</th><th>Category</th><th>Price</th><th>Status</th>${isMainAdmin ? '<th>Actions</th>' : ''}</tr></thead><tbody>
+      ${items.map(t => `<tr>
+        <td data-label="Name">${t.icon || '🔬'} ${t.name}</td>
+        <td data-label="Category">${t.category || '—'}</td>
+        <td data-label="Price">₹${Number(t.price).toLocaleString('en-IN')}</td>
+        <td data-label="Status"><span class="badge ${t.is_active ? 'badge-green' : 'badge-gray'}">${t.is_active ? 'Active' : 'Inactive'}</span></td>
+        ${isMainAdmin ? `<td data-label="Actions">
+          <button type="button" class="btn btn-ghost editBtn" data-id="${t.id}" style="font-size:11.5px;padding:5px 8px;">Edit</button>
+          <button type="button" class="btn btn-ghost toggleBtn" data-id="${t.id}" data-active="${t.is_active}" style="font-size:11.5px;padding:5px 8px;color:${t.is_active ? 'var(--danger)' : 'var(--success)'};">${t.is_active ? 'Deactivate' : 'Activate'}</button>
+        </td>` : ''}
+      </tr>`).join('')}
+    </tbody></table>`;
+
+    root.querySelectorAll('.editBtn').forEach(b => b.addEventListener('click', () => openModal(allTests.find(t => t.id === b.dataset.id))));
+    root.querySelectorAll('.toggleBtn').forEach(b => b.addEventListener('click', async () => {
+      const willActivate = b.dataset.active === 'false';
+      const confirmed = await confirmDialog(`${willActivate ? 'Activate' : 'Deactivate'} this test? ${willActivate ? '' : 'It will disappear from the public site immediately.'}`, { confirmLabel: willActivate ? 'Activate' : 'Deactivate', danger: !willActivate });
+      if (!confirmed) return;
+      try {
+        const { error } = await supabase.from('tests').update({ is_active: willActivate }).eq('id', b.dataset.id);
+        if (error) throw error;
+        showToast(willActivate ? 'Test activated' : 'Test deactivated', 'success');
+        load();
+      } catch (e) { showToast(e.message, 'error'); }
+    }));
+  }
+  document.getElementById('searchInput').addEventListener('input', render);
+
+  let editingId = null;
+  function openModal(test) {
+    editingId = test?.id || null;
+    document.getElementById('modalTitle').textContent = test ? 'Edit Test' : 'Add Test';
+    document.getElementById('fName').value = test?.name || '';
+    document.getElementById('fSlug').value = test?.slug || '';
+    document.getElementById('fCategory').value = test?.category || '';
+    document.getElementById('fPrice').value = test?.price || '';
+    document.getElementById('fSampleType').value = test?.sample_type || '';
+    document.getElementById('fDescription').value = test?.description || '';
+    document.getElementById('fPreparation').value = test?.preparation || '';
+    document.getElementById('fActive').checked = test ? test.is_active : true;
+    document.getElementById('formMsg').textContent = '';
+    document.getElementById('modalBackdrop').classList.add('open');
+  }
+  document.getElementById('modalClose').addEventListener('click', () => document.getElementById('modalBackdrop').classList.remove('open'));
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    const msgEl = document.getElementById('formMsg');
+    const name = document.getElementById('fName').value.trim();
+    const slug = document.getElementById('fSlug').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    const price = Number(document.getElementById('fPrice').value);
+    if (!name || !slug || !(price >= 0)) { msgEl.textContent = 'Name, slug, and a valid price are required.'; msgEl.style.color = 'var(--danger)'; return; }
+
+    const payload = {
+      name, slug, price,
+      category: document.getElementById('fCategory').value.trim() || null,
+      sample_type: document.getElementById('fSampleType').value.trim() || null,
+      description: document.getElementById('fDescription').value.trim() || null,
+      preparation: document.getElementById('fPreparation').value.trim() || null,
+      is_active: document.getElementById('fActive').checked,
+    };
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const { error } = editingId
+        ? await supabase.from('tests').update(payload).eq('id', editingId)
+        : await supabase.from('tests').insert(payload);
+      if (error) throw error;
+      showToast(editingId ? 'Test updated' : 'Test created', 'success');
+      document.getElementById('modalBackdrop').classList.remove('open');
+      load();
+    } catch (e) {
+      msgEl.textContent = '❌ ' + e.message; msgEl.style.color = 'var(--danger)';
+    }
+    btn.disabled = false; btn.textContent = 'Save';
+  });
+</script>
+</html>
