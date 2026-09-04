@@ -11,9 +11,14 @@ Live project: **my prime diagnoatics lab** (`woedykgrzczgogtymfxg`, `ap-south-1`
 | 0001 | `supabase/migrations/0001_foundation_and_catalog.sql` | `profiles`, Head-Admin bootstrap, `tests`, `packages`, `package_tests`, `package_features`, `coupons` + `validate_coupon()` RPC. RLS enabled on every table. |
 | 0002 | `supabase/migrations/0002_security_hardening_fixes.sql` | Fixed a critical gap introduced in 0001 (`main_admin_locks` had RLS disabled) and a function search-path warning. See SECURITY.md §2. |
 | 0003 | `supabase/migrations/0003_capture_phone_on_signup.sql` | Fixed the signup trigger to actually store the phone number collected at registration (was silently dropped). |
+| 0004 | `supabase/migrations/0004_bookings_schema.sql` | `appointment_slots`, `bookings`, `booking_items`, `collection_addresses`, `booking_status_history`, `generate_booking_code()`, `can_view_booking()`. RLS enabled on every table; no direct insert/update/delete grant to any client role — all writes go through the RPCs in 0005/0007. |
+| 0005 | `supabase/migrations/0005_booking_rpcs.sql` | `get_slot_availability()`, `create_booking()`, `update_booking_stage()`, `track_booking()`, `track_booking_timeline()`. Enabled Realtime on `bookings` and `booking_status_history`. |
+| 0006 | `supabase/migrations/0006_appointment_slots_unique_label.sql` | Added a unique constraint on `appointment_slots.label`, caught while writing the seed file (see BOOKING_IMPLEMENTATION.md §2). |
+| 0007 | `supabase/migrations/0007_fix_ambiguous_status_column.sql` | Fixed a real bug found by running the flow in-browser: `create_booking()`'s ambiguous `status` reference (see BOOKING_IMPLEMENTATION.md §2). |
 | — | `supabase/seed/001_catalog_seed.sql` | Real catalog data ported from `index-1.html` (5 packages, 31 features, 15 tests) — not synthetic. |
+| — | `supabase/seed/002_appointment_slots_seed.sql` | The exact 8 time windows from `index-1.html`'s booking form. |
 
-Bookings, tracker, reports, staff CRUD, and cashflow tables are **not yet created** — that's the next backend phase, scoped deliberately separately (see ARCHITECTURE_PLAN.md).
+Staff CRUD, reports, and cashflow tables are **not yet created** — that's the admin migration phase, scoped deliberately separately (see ARCHITECTURE_PLAN.md and BOOKING_IMPLEMENTATION.md).
 
 ## 2. Tables
 
@@ -26,6 +31,11 @@ Bookings, tracker, reports, staff CRUD, and cashflow tables are **not yet create
 | `package_tests` | 0 (this catalog uses `package_features` — see below) | ✅ | Structured tests-included list for a package, when a package uses the newer per-test schema. |
 | `package_features` | 31 | ✅ | Plain-string feature list for a package (the schema all 5 seeded packages actually use, matching the source app). |
 | `coupons` | 0 | ✅ | Not publicly readable — see SECURITY.md §3. Empty because the source app has no default coupons (admin-created only). |
+| `appointment_slots` | 8 | ✅ | The 8 real time windows from the source app's booking form. Public read (active only); `main_admin` writes. `default_capacity` (12) is a placeholder pending the business's real per-slot numbers. |
+| `bookings` | 0 (test data cleaned up after verification) | ✅ | The core booking record — patient snapshot, collection details, pricing (always server-computed), payment, `status` (coarse lifecycle) + `stage` (fine-grained pipeline, the original app's exact TRACKER_FLOW vocabulary), RBAC ownership fields. No insert/update/delete grant to any client role — every write goes through `create_booking()`/`update_booking_stage()`. |
+| `booking_items` | 0 | ✅ | One row per item in a booking (package or test), snapshotting name+price. Schema supports multiple items per booking; the wizard built so far always inserts exactly one. |
+| `collection_addresses` | 0 | ✅ | One-way FK to `bookings` (not circular), created only when `collection_type='home'`. |
+| `booking_status_history` | 0 | ✅ | Full audit trail of every stage/status change. Customer-facing RPCs only ever select `new_status`+`created_at` from this table — `note`/`changed_by`/`changed_by_name` are never part of a customer-facing return shape. |
 
 ## 3. Functions
 
@@ -36,9 +46,18 @@ Bookings, tracker, reports, staff CRUD, and cashflow tables are **not yet create
 | `is_main_admin()`, `is_staff()`, `current_user_role()` | SQL, `SECURITY DEFINER` | RLS policy helpers — avoid recursive policy evaluation. See SECURITY.md §2 for their known, accepted advisory. |
 | `set_updated_at()` | Trigger helper | Keeps `updated_at` current on `profiles`/`tests`/`packages`/`coupons`. |
 | `validate_coupon(code, amount)` | RPC, `SECURITY DEFINER` | The **only** public surface for coupon checks — returns validity + discount, never the coupons table itself. |
+| `can_view_booking(booking_id)` | SQL, `SECURITY DEFINER` | Shared RLS helper for `booking_items`/`collection_addresses`/`booking_status_history` — mirrors `bookings`' own visibility rule exactly, so the child tables can't drift out of sync with it. |
+| `generate_booking_code()` | PL/pgSQL | Collision-checked, bounded-retry generator for `MPD-XXXXXX` codes. See BOOKING_IMPLEMENTATION.md §3. |
+| `get_slot_availability(date)` | SQL, `SECURITY DEFINER` | Real capacity check — counts actual non-cancelled bookings per slot for a date. Public. |
+| `create_booking(...)` | RPC, `SECURITY DEFINER` | The only way a booking is ever created. Validates item/availability/coupon, recalculates price server-side, transactional, idempotent. See BOOKING_IMPLEMENTATION.md §4. |
+| `update_booking_stage(booking_id, stage, note)` | RPC, `SECURITY DEFINER` | The only way a booking's stage changes. Role-scoped: full flexibility for `main_admin`/`sub_admin`, narrow field-relevant stages for `collection_agent` on their own bookings only. |
+| `track_booking(code, phone)`, `track_booking_timeline(code, phone)` | RPC, `SECURITY DEFINER` | The only public surface for checking a booking's status — requires both fields to match; returns minimal safe fields only. See BOOKING_IMPLEMENTATION.md §5. |
 
 ## 4. Design decisions worth knowing
 
 - **`profiles` consolidates Firebase's `users` + `staff_users`** into one table (`role='patient'` for regular customers) — a deliberate schema improvement, not a 1:1 Firestore copy, per the explicit instruction to design a proper relational schema rather than blindly porting documents.
 - **`package_features` stores a snapshot, not a live join to `tests`** — a package's advertised contents never silently change if a linked test is later edited, matching the "historically accurate" requirement for anything a customer was shown at booking/purchase time.
 - **No `finance_admin` role exists** — the source app (`index-1.html`) only ever implements `main_admin`/`sub_admin`/`collection_agent`; a 4th role was not invented despite being mentioned as a hypothetical example in the request.
+- **`bookings.status` (coarse) + `bookings.stage` (fine-grained) is a deliberate two-column split**, not redundancy — it mirrors the original app's own separation between a booking's payment/lifecycle state and its operational tracker position, just normalized: the original's separate `tracker_states` collection (with a JSON timeline array) is replaced here by `stage` living directly on `bookings` (always exactly 1:1 with a booking, so no reason for a separate table) plus `booking_status_history` as a proper relational audit trail instead of a JSON array column.
+- **`bookings`/`booking_items`/`collection_addresses` have no INSERT/UPDATE/DELETE grant for `anon` or `authenticated` at all** — every write goes through a `SECURITY DEFINER` RPC. This isn't a stopgap; it's the actual intended design, since it's the only way to guarantee price/discount/availability are always server-computed.
+- **Realtime is enabled on `bookings` and `booking_status_history`** via `supabase_realtime` publication — verified live for a logged-in user's own booking. Not usable by anonymous guests (no table grant), who get a polling fallback instead — see BOOKING_IMPLEMENTATION.md §5.
