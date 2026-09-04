@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Management | Admin | My Prime Diagnostic</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+</head>
+
+<div class="admin-shell">
+  <div id="admin-sidebar"></div>
+  <div class="admin-main">
+    <div class="admin-topbar" id="admin-topbar"></div>
+    <div class="admin-content">
+      <div class="admin-toolbar">
+        <h3 id="sectionTitle" style="margin:0;flex:1;font-size:16px;">Team</h3>
+        <button type="button" class="btn btn-primary" id="addStaffBtn" style="display:none;"><i class="fas fa-user-plus"></i> Add Staff</button>
+      </div>
+      <div id="readonlyBanner"></div>
+      <div class="admin-table-wrap"><div id="listRoot" style="overflow-x:auto;"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="admin-modal-backdrop" id="addModalBackdrop">
+  <div class="admin-modal">
+    <button class="admin-modal-close" id="addModalClose">&times;</button>
+    <h3>Add Staff</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Sends a real Supabase invite email — the new staff member sets their own password by following the link. No password is created or stored here.</p>
+    <div class="field"><label>Full Name *</label><input type="text" id="newFullName"></div>
+    <div class="field"><label>Email *</label><input type="email" id="newEmail"></div>
+    <div class="field"><label>Phone (optional)</label><input type="tel" id="newPhone" maxlength="10"></div>
+    <div class="field"><label>Role *</label>
+      <select id="newRole">
+        <option value="sub_admin">Sub Admin</option>
+        <option value="collection_agent">Collection Agent</option>
+      </select>
+    </div>
+    <div class="field" id="parentSubAdminWrap" style="display:none;">
+      <label>Reports to (Sub Admin)</label>
+      <select id="newParentSubAdmin"><option value="">— None —</option></select>
+    </div>
+    <div id="addStaffMsg" style="font-size:13px;margin-bottom:10px;"></div>
+    <button type="button" class="btn btn-primary btn-block" id="submitAddStaffBtn">Send Invite</button>
+  </div>
+</div>
+
+<script type="module">
+  import { requireStaffSession } from '/assets/js/admin-guard.js';
+  import { mountAdminShell } from '/assets/js/admin-shell.js';
+  import { fetchStaff, fetchProtectedUids, fetchWorkload, updateStaffStatus, updateStaffRole, inviteStaff } from '/assets/js/services/team.js';
+  import { roleLabel } from '/assets/js/admin-guard.js';
+  import { showToast, confirmDialog } from '/assets/js/admin-ui.js';
+
+  const session = await requireStaffSession();
+  const isMainAdmin = session?.role === 'main_admin';
+  let staff = [], protectedUids = new Set(), workload = [];
+
+  if (!session) { /* redirected */ }
+  else if (!['main_admin', 'sub_admin'].includes(session.role)) {
+    document.querySelector('.admin-content').innerHTML = `<div class="state-block"><div class="state-icon">🔒</div><div class="state-title">Not available for your role</div></div>`;
+  } else {
+    mountAdminShell({ currentKey: 'team', title: 'Team Management', profile: session.profile });
+    init();
+  }
+
+  async function init() {
+    document.getElementById('sectionTitle').textContent = isMainAdmin ? 'Full Team' : 'My Team';
+    if (isMainAdmin) {
+      document.getElementById('addStaffBtn').style.display = 'inline-flex';
+      document.getElementById('addStaffBtn').addEventListener('click', openAddModal);
+    } else {
+      document.getElementById('readonlyBanner').innerHTML = `<div class="admin-readonly-banner"><i class="fas fa-eye"></i> You can view your team's status here. Role changes, enable/disable, and adding staff are Main Admin actions.</div>`;
+    }
+    await load();
+  }
+
+  async function load() {
+    const root = document.getElementById('listRoot');
+    root.innerHTML = `<div class="state-block"><div class="state-icon">⏳</div></div>`;
+    try {
+      [staff, workload] = await Promise.all([fetchStaff(), fetchWorkload()]);
+      try { protectedUids = await fetchProtectedUids(); } catch (e) { protectedUids = new Set(); } // empty for sub_admin, fine
+      render();
+    } catch (e) {
+      root.innerHTML = `<div class="state-block"><div class="state-icon">⚠️</div><div class="state-title">Couldn't load team</div><div class="state-desc">${e.message}</div></div>`;
+    }
+  }
+
+  function workloadFor(id) { return workload.find(w => w.agent_id === id); }
+
+  function render() {
+    const root = document.getElementById('listRoot');
+    if (!staff.length) { root.innerHTML = `<div class="state-block"><div class="state-icon">👥</div><div class="state-title">No staff yet</div></div>`; return; }
+    root.innerHTML = `<table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Status</th><th>Workload</th><th>Last Login</th>${isMainAdmin ? '<th>Actions</th>' : ''}</tr></thead><tbody>
+      ${staff.map(s => {
+        const locked = protectedUids.has(s.id);
+        const w = workloadFor(s.id);
+        return `<tr data-id="${s.id}">
+          <td data-label="Name">${s.full_name || '—'} ${locked ? '<span class="badge badge-orange" title="Protected Super Admin — cannot be changed or removed">🔒 Super Admin</span>' : ''}</td>
+          <td data-label="Email">${s.email}</td>
+          <td data-label="Phone">${s.phone || '—'}</td>
+          <td data-label="Role">${isMainAdmin && !locked ? roleSelect(s) : `<span class="badge badge-blue">${roleLabel(s.role)}</span>`}</td>
+          <td data-label="Status">${isMainAdmin && !locked ? statusToggle(s) : `<span class="badge ${s.status === 'active' ? 'badge-green' : 'badge-gray'}">${s.status}</span>`}</td>
+          <td data-label="Workload">${s.role === 'collection_agent' && w ? `${w.today_assigned} today · ${w.pending_count} active · ${w.completed_count} done` : '—'}</td>
+          <td data-label="Last Login">${s.last_login ? new Date(s.last_login).toLocaleDateString('en-IN') : 'Never'}</td>
+          ${isMainAdmin ? `<td data-label="Actions">${locked ? '<span class="admin-empty-hint">Protected</span>' : ''}</td>` : ''}
+        </tr>`;
+      }).join('')}
+    </tbody></table>`;
+
+    if (isMainAdmin) {
+      root.querySelectorAll('select.role-select').forEach(sel => {
+        sel.addEventListener('change', async () => {
+          const uid = sel.closest('tr').dataset.id;
+          const newRole = sel.value;
+          const confirmed = await confirmDialog(`Change this staff member's role to ${roleLabel(newRole)}?`, { confirmLabel: 'Change Role', danger: false });
+          if (!confirmed) { render(); return; }
+          try {
+            await updateStaffRole(uid, newRole, null);
+            showToast('Role updated', 'success');
+            await load();
+          } catch (e) { showToast(e.message, 'error'); render(); }
+        });
+      });
+      root.querySelectorAll('input.status-toggle').forEach(chk => {
+        chk.addEventListener('change', async () => {
+          const uid = chk.closest('tr').dataset.id;
+          const newStatus = chk.checked ? 'active' : 'inactive';
+          const confirmed = await confirmDialog(newStatus === 'inactive' ? 'Disable this staff member\'s admin access?' : 'Re-enable this staff member\'s admin access?', { confirmLabel: newStatus === 'inactive' ? 'Disable' : 'Enable', danger: newStatus === 'inactive' });
+          if (!confirmed) { chk.checked = !chk.checked; return; }
+          try {
+            await updateStaffStatus(uid, newStatus);
+            showToast(`Access ${newStatus === 'active' ? 'enabled' : 'disabled'}`, 'success');
+            await load();
+          } catch (e) { showToast(e.message, 'error'); render(); }
+        });
+      });
+    }
+  }
+
+  function roleSelect(s) {
+    return `<select class="role-select" style="padding:5px 8px;border-radius:6px;border:1.5px solid var(--gray-200);font-size:12px;">
+      <option value="sub_admin" ${s.role === 'sub_admin' ? 'selected' : ''}>Sub Admin</option>
+      <option value="collection_agent" ${s.role === 'collection_agent' ? 'selected' : ''}>Collection Agent</option>
+    </select>`;
+  }
+  function statusToggle(s) {
+    return `<label class="admin-toggle"><input type="checkbox" class="status-toggle" ${s.status === 'active' ? 'checked' : ''}><span class="admin-toggle-slider"></span></label>`;
+  }
+
+  // ---- Add Staff modal ----
+  function openAddModal() {
+    document.getElementById('newFullName').value = '';
+    document.getElementById('newEmail').value = '';
+    document.getElementById('newPhone').value = '';
+    document.getElementById('newRole').value = 'sub_admin';
+    document.getElementById('addStaffMsg').textContent = '';
+    const parentSel = document.getElementById('newParentSubAdmin');
+    parentSel.innerHTML = '<option value="">— None —</option>' + staff.filter(s => s.role === 'sub_admin').map(s => `<option value="${s.id}">${s.full_name || s.email}</option>`).join('');
+    document.getElementById('addModalBackdrop').classList.add('open');
+  }
+  document.getElementById('addModalClose').addEventListener('click', () => document.getElementById('addModalBackdrop').classList.remove('open'));
+  document.getElementById('newRole').addEventListener('change', (e) => {
+    document.getElementById('parentSubAdminWrap').style.display = e.target.value === 'collection_agent' ? 'block' : 'none';
+  });
+  document.getElementById('submitAddStaffBtn').addEventListener('click', async () => {
+    const msgEl = document.getElementById('addStaffMsg');
+    const fullName = document.getElementById('newFullName').value.trim();
+    const email = document.getElementById('newEmail').value.trim();
+    const role = document.getElementById('newRole').value;
+    const phone = document.getElementById('newPhone').value.trim() || null;
+    const parentSubAdminId = document.getElementById('newParentSubAdmin').value || null;
+    if (!fullName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      msgEl.textContent = 'Enter a valid name and email.'; msgEl.style.color = 'var(--danger)'; return;
+    }
+    const btn = document.getElementById('submitAddStaffBtn');
+    btn.disabled = true; btn.textContent = 'Sending invite…';
+    try {
+      const result = await inviteStaff({ email, fullName, phone, role, parentSubAdminId });
+      showToast(`Invite sent to ${result.email}`, 'success');
+      document.getElementById('addModalBackdrop').classList.remove('open');
+      await load();
+    } catch (e) {
+      msgEl.textContent = '❌ ' + e.message; msgEl.style.color = 'var(--danger)';
+    }
+    btn.disabled = false; btn.textContent = 'Send Invite';
+  });
+</script>
+</html>
