@@ -19,6 +19,8 @@
 .btn-outline:hover { background: var(--blue-pale); }
 .btn-ghost { background: transparent; color: var(--text); border: 1.5px solid var(--gray-200); }
 .btn-ghost:hover { background: var(--gray-50); }
+.btn-green { background: #25D366; color: #fff; } /* WhatsApp brand green — used for WhatsApp CTAs sitewide */
+.btn-green:hover { background: #1EBE5A; }
 .btn-block { width: 100%; }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-lg { padding: 15px 32px; font-size: 15px; }
@@ -34,6 +36,7 @@
   gap: 20px; padding: 14px 20px; max-width: var(--container-max); margin: 0 auto;
 }
 .site-nav .logo { display: flex; align-items: center; gap: 10px; }
+.site-nav .logo img { height: 38px; width: 38px; object-fit: contain; }
 .site-nav .logo-name { font-family: 'Clash Display', sans-serif; font-weight: 700; font-size: 17px; color: var(--blue); }
 .nav-links { display: none; list-style: none; margin: 0; padding: 0; gap: 28px; align-items: center; }
 .nav-links a { font-size: 14px; font-weight: 500; color: var(--text); transition: var(--transition); }

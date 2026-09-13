@@ -28,7 +28,8 @@ function renderHeader(currentKey) {
     <nav class="site-nav" aria-label="Primary">
       <div class="site-nav-inner">
         <a class="logo" href="/index.html">
-          <span class="logo-name">🏥 My Prime Diagnostic</span>
+          <img src="/assets/img/logo.jpg" alt="My Prime Diagnostic" width="38" height="38">
+          <span class="logo-name">My Prime Diagnostic</span>
         </a>
         <ul class="nav-links">
           ${NAV_ITEMS.map(i => `<li>${navLinkHTML(i, currentKey)}</li>`).join('')}
@@ -92,7 +93,7 @@ function renderFooter() {
     <footer class="site-footer">
       <div class="container footer-grid">
         <div class="footer-col">
-          <h4>🏥 <span id="footerLabName">My Prime Diagnostic</span></h4>
+          <h4 style="display:flex;align-items:center;gap:8px;"><img src="/assets/img/logo.jpg" alt="" width="24" height="24" style="border-radius:4px;"> <span id="footerLabName">My Prime Diagnostic</span></h4>
           <p>NABL-certified pathology lab in Noida — accurate blood tests and free home sample collection.</p>
           <p>📞 <a href="tel:+917428456590" id="footerPhoneLink">+91 74284 56590</a></p>
         </div>

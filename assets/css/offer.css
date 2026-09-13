@@ -1,0 +1,52 @@
+/* ============================================================
+   Styles specific to the Full Body Health Checkup offer landing page
+   (pages/offer-full-body-checkup.html) — the parts with no existing
+   equivalent in components.css. Structural pieces (buttons, badges,
+   container, section, form fields) reuse the site's real design
+   system instead of being redefined here, same convention as
+   booking.css/admin.css for their own pages.
+   ============================================================ */
+
+.offer-hero { background: linear-gradient(135deg, var(--blue-pale), var(--bg) 70%); padding: 48px 0; }
+.offer-hero-grid { display: grid; gap: 32px; align-items: center; }
+@media (min-width: 900px) { .offer-hero-grid { grid-template-columns: 1.1fr 0.9fr; } }
+.offer-hero h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.1; margin-bottom: 14px; }
+.offer-hero h1 span { color: var(--blue); }
+.offer-hero p { font-size: 16px; color: var(--text-muted); max-width: 560px; }
+.offer-hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 22px 0; }
+.offer-trust { display: flex; flex-wrap: wrap; gap: 10px; }
+.offer-trust span { background: var(--card-bg); border: 1px solid var(--gray-200); padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+.offer-ad-wrap { background: var(--card-bg); padding: 8px; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
+.offer-ad-wrap img { width: 100%; display: block; border-radius: var(--radius-md); }
+
+.offer-tests-grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .offer-tests-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 960px) { .offer-tests-grid { grid-template-columns: repeat(3, 1fr); } }
+.offer-test-item { border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 16px; background: var(--card-bg); }
+.offer-test-num { width: 28px; height: 28px; display: grid; place-items: center; background: var(--blue-pale); color: var(--blue); border-radius: 50%; font-weight: 800; font-size: 13px; margin-bottom: 10px; }
+.offer-test-item b { display: block; margin-bottom: 3px; font-size: 14px; }
+.offer-test-item small { color: var(--text-muted); font-size: 12px; }
+
+.offer-price-block { background: var(--blue); color: #fff; border-radius: var(--radius-lg); padding: 40px 28px; }
+@media (min-width: 1024px) { .offer-price-block { padding: 48px; } }
+.offer-price-grid { display: grid; gap: 28px; }
+@media (min-width: 900px) { .offer-price-grid { grid-template-columns: 1.2fr 1fr; align-items: center; } }
+.offer-price-block h2 { color: #fff; font-size: 30px; margin-bottom: 10px; }
+.offer-price-block p { color: rgba(255,255,255,0.85); }
+.offer-price-value { font-size: 48px; font-weight: 800; font-family: 'Clash Display', sans-serif; margin: 16px 0; }
+.offer-price-value small { font-size: 16px; font-weight: 600; }
+.offer-price-list { list-style: none; margin: 16px 0; padding: 0; }
+.offer-price-list li { margin: 8px 0; padding-left: 24px; position: relative; }
+.offer-price-list li::before { content: '✓'; position: absolute; left: 0; font-weight: 800; }
+.offer-highlight-card { background: rgba(0,0,0,0.35); border-radius: var(--radius-md); padding: 24px; }
+.offer-highlight-card h3 { color: #fff; margin-bottom: 12px; font-size: 18px; }
+.offer-highlight-card p { color: rgba(255,255,255,0.9); font-size: 13px; margin-bottom: 10px; }
+
+.offer-lead-box { max-width: 680px; margin: 0 auto; text-align: center; background: var(--card-bg); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 36px 24px; box-shadow: var(--shadow-sm); }
+.offer-lead-box .field-row { text-align: left; }
+.offer-lead-note { font-size: 12px; color: var(--text-muted); margin-top: 10px; }
+
+.offer-floating { position: fixed; right: 18px; bottom: 18px; z-index: 40; display: flex; flex-direction: column; gap: 10px; }
+.offer-float-btn { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 22px; box-shadow: var(--shadow-md); }
+.offer-float-btn.wa { background: #25D366; }
+.offer-float-btn.call { background: var(--blue); }

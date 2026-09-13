@@ -72,7 +72,7 @@ export function mountAdminShell({ currentKey, title, profile }) {
     <div class="admin-sidebar-backdrop" id="adminSidebarBackdrop"></div>
     <aside class="admin-sidebar" id="adminSidebar">
       <div class="admin-sidebar-brand">
-        <span style="font-size:20px;">🏥</span>
+        <img src="/assets/img/logo.jpg" alt="" width="32" height="32" style="border-radius:6px;">
         <div>
           <div class="admin-sidebar-brand-name">My Prime Diagnostic</div>
           <div class="admin-sidebar-brand-sub">Admin Panel</div>

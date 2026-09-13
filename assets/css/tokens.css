@@ -1,15 +1,26 @@
 /* ============================================================
-   Design tokens — extracted from the existing index-1.html
-   (AUDIT.md §5). Kept identical on purpose: same brand, same feel,
-   just reused across real pages instead of one inline <style> block.
+   Design tokens.
+   ------------------------------------------------------------
+   UPDATED this phase: the real logo file arrived (assets/img/logo.jpg
+   — a heart+medical-cross mark, "My Prime" in navy/orange, "DIAGNOSTIC"
+   in navy, "Precise • Reliable • Caring" in navy/orange/navy), ending
+   the multi-phase "no logo asset exists" blocker. It came embedded in
+   a real landing-page HTML file the business already uses (see
+   pages/offer-full-body-checkup.html), which already ships its own
+   logo-derived palette — reused verbatim here as the authoritative
+   source rather than re-estimated from a screenshot:
+     --blue:#174ea6 --dark(--blue-dark):#102a43 --orange:#f26b21
+   This replaces the old #04378A/#032A69 pairing, which was only ever
+   a placeholder lifted from index-1.html's own CSS (AUDIT.md §5) in
+   Phase 1, before any real logo existed.
    ============================================================ */
 :root {
   /* Brand */
-  --blue: #04378A;
-  --blue-light: #3C63A4;
-  --blue-dark: #032A69;
+  --blue: #174EA6;
+  --blue-light: #4472C4;
+  --blue-dark: #102A43;
   --blue-pale: #F1F4F8;
-  --orange: #F16C0F;
+  --orange: #F26B21;
   --orange-light: #F4883D;
   --orange-pale: #FEF0E7;
   --white: #FFFFFF;
