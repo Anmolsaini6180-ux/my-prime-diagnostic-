@@ -40,9 +40,11 @@
     <div class="field"><label>Phone (optional)</label><input type="tel" id="newPhone" maxlength="10"></div>
     <div class="field"><label>Role *</label>
       <select id="newRole">
+        <option value="main_admin">Admin (full access — sees everything)</option>
         <option value="sub_admin">Sub Admin</option>
         <option value="collection_agent">Collection Agent</option>
       </select>
+      <div id="newRoleHint" style="font-size:11.5px;color:var(--text-muted);margin-top:6px;"></div>
     </div>
     <div class="field" id="parentSubAdminWrap" style="display:none;">
       <label>Reports to (Sub Admin)</label>
@@ -122,7 +124,10 @@
         sel.addEventListener('change', async () => {
           const uid = sel.closest('tr').dataset.id;
           const newRole = sel.value;
-          const confirmed = await confirmDialog(`Change this staff member's role to ${roleLabel(newRole)}?`, { confirmLabel: 'Change Role', danger: false });
+          const msg = newRole === 'main_admin'
+            ? 'Give this staff member full Admin access? They will be able to see and manage everything — all bookings, staff, catalogue, and settings.'
+            : `Change this staff member's role to ${roleLabel(newRole)}?`;
+          const confirmed = await confirmDialog(msg, { confirmLabel: 'Change Role', danger: newRole === 'main_admin' });
           if (!confirmed) { render(); return; }
           try {
             await updateStaffRole(uid, newRole, null);
@@ -149,6 +154,7 @@
 
   function roleSelect(s) {
     return `<select class="role-select" style="padding:5px 8px;border-radius:6px;border:1.5px solid var(--gray-200);font-size:12px;">
+      <option value="main_admin" ${s.role === 'main_admin' ? 'selected' : ''}>Admin (full access)</option>
       <option value="sub_admin" ${s.role === 'sub_admin' ? 'selected' : ''}>Sub Admin</option>
       <option value="collection_agent" ${s.role === 'collection_agent' ? 'selected' : ''}>Collection Agent</option>
     </select>`;
@@ -158,20 +164,30 @@
   }
 
   // ---- Add Staff modal ----
+  function updateRoleHint() {
+    const role = document.getElementById('newRole').value;
+    document.getElementById('parentSubAdminWrap').style.display = role === 'collection_agent' ? 'block' : 'none';
+    const hint = document.getElementById('newRoleHint');
+    hint.textContent = role === 'main_admin'
+      ? '⚠️ Full access — this admin will see and manage everything (all bookings, staff, catalogue, settings), the same as you. Unlike the original protected Super Admin, another Admin can change or remove this account later if needed.'
+      : role === 'sub_admin'
+      ? 'Operational access — bookings, tracker, catalogue (read-only), reports.'
+      : 'Sees only the bookings assigned to or created by them.';
+  }
+
   function openAddModal() {
     document.getElementById('newFullName').value = '';
     document.getElementById('newEmail').value = '';
     document.getElementById('newPhone').value = '';
     document.getElementById('newRole').value = 'sub_admin';
     document.getElementById('addStaffMsg').textContent = '';
+    updateRoleHint();
     const parentSel = document.getElementById('newParentSubAdmin');
     parentSel.innerHTML = '<option value="">— None —</option>' + staff.filter(s => s.role === 'sub_admin').map(s => `<option value="${s.id}">${s.full_name || s.email}</option>`).join('');
     document.getElementById('addModalBackdrop').classList.add('open');
   }
   document.getElementById('addModalClose').addEventListener('click', () => document.getElementById('addModalBackdrop').classList.remove('open'));
-  document.getElementById('newRole').addEventListener('change', (e) => {
-    document.getElementById('parentSubAdminWrap').style.display = e.target.value === 'collection_agent' ? 'block' : 'none';
-  });
+  document.getElementById('newRole').addEventListener('change', updateRoleHint);
   document.getElementById('submitAddStaffBtn').addEventListener('click', async () => {
     const msgEl = document.getElementById('addStaffMsg');
     const fullName = document.getElementById('newFullName').value.trim();
@@ -181,6 +197,10 @@
     const parentSubAdminId = document.getElementById('newParentSubAdmin').value || null;
     if (!fullName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       msgEl.textContent = 'Enter a valid name and email.'; msgEl.style.color = 'var(--danger)'; return;
+    }
+    if (role === 'main_admin') {
+      const confirmed = await confirmDialog(`Give ${fullName} full Admin access? They will be able to see and manage everything on this system.`, { confirmLabel: 'Send Invite', danger: true });
+      if (!confirmed) return;
     }
     const btn = document.getElementById('submitAddStaffBtn');
     btn.disabled = true; btn.textContent = 'Sending invite…';

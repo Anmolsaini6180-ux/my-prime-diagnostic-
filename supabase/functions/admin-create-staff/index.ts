@@ -1,22 +1,25 @@
 // ============================================================
 // Edge Function: admin-create-staff
 // ============================================================
-// The ONLY way a new sub_admin/collection_agent account is ever
-// created (Section 23). Runs server-side specifically because real
-// account creation needs the Supabase Admin API (service-role key),
-// which must never reach the browser — this function is the boundary.
+// The ONLY way a new sub_admin/collection_agent/main_admin account is
+// ever created. Runs server-side specifically because real account
+// creation needs the Supabase Admin API (service-role key), which
+// must never reach the browser — this function is the boundary.
 //
 // Flow:
 //   1. Verify the CALLER (via their own JWT, anon-key client) is a
-//      real, active main_admin. Per Section 23's literal wording
-//      ("Main Admin can add: Sub Admin, Collection Agent"), only
-//      main_admin may call this — not sub_admin.
-//   2. Validate the requested role is 'sub_admin' or 'collection_agent'
-//      ONLY. main_admin can never be requested here — the only way an
-//      account becomes main_admin is the existing DB-level
-//      owner_emails()/sync_owner_admins() bootstrap (see migration
-//      0009), never an admin "create user" form. Rejected outright if
-//      attempted.
+//      real, active main_admin — only main_admin may call this.
+//   2. Validate the requested role is 'sub_admin', 'collection_agent',
+//      or 'main_admin'. A main_admin created here is a REGULAR admin,
+//      not the protected Super Admin — it is deliberately NOT added
+//      to main_admin_locks, so it remains a normal, manageable account
+//      another main_admin could later change (unlike the permanently
+//      protected owner-bootstrapped accounts from migration 0009,
+//      which this function never touches and cannot create). This is
+//      the intended distinction: "protected Super Admin" is a DB-level
+//      concept tied to a fixed, hardcoded email list; "an admin with
+//      full access" is an ordinary staff role anyone already holding
+//      main_admin can now grant through this UI.
 //   3. Use supabase.auth.admin.inviteUserByEmail() (service-role
 //      client, never exposed to the browser) — this creates a real
 //      auth.users row and sends Supabase's own invite email, which
@@ -80,11 +83,8 @@ Deno.serve(async (req: Request) => {
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'A valid email is required.' }, 400);
     if (!fullName) return json({ error: 'Full name is required.' }, 400);
-    if (role !== 'sub_admin' && role !== 'collection_agent') {
-      // Deliberately rejects 'main_admin' and anything else. This is
-      // not a gap to "fix later" — Super Admin status is only ever
-      // granted by the DB-level bootstrap, never this form.
-      return json({ error: 'Role must be sub_admin or collection_agent.' }, 400);
+    if (!['sub_admin', 'collection_agent', 'main_admin'].includes(role)) {
+      return json({ error: 'Role must be main_admin, sub_admin, or collection_agent.' }, 400);
     }
 
     // Privileged client — service-role key, exists ONLY inside this

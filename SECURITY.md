@@ -86,20 +86,26 @@ Two more gaps found during inspection:
 - Real HTTP tests with genuine JWTs for a throwaway `sub_admin`, two throwaway `collection_agent`s (one on the sub_admin's team, one not), and a throwaway `patient`: the `sub_admin` correctly saw a booking they created via the Admin Add Booking path; assigning the on-team agent succeeded, assigning the off-team agent was rejected with `"You can only assign collection agents on your own team"`; the on-team agent could see and update the booking's stage, the off-team agent could see neither.
 - The absolute-protection trigger was tested against a **disposable throwaway "main_admin"** created specifically for this test (temporarily added to `owner_emails()`, promoted and locked exactly like a real bootstrap would), never the real `anmolsaini6180@gmail.com` account. A direct SQL `UPDATE` attempting to set that throwaway account's `role='patient', status='inactive'` — run with full superuser privileges, deliberately chosen to test the strongest possible bypass attempt — was rejected with `"This account is a protected Super Admin and cannot be demoted, deactivated, or have its reporting line changed."` A follow-up read confirmed the row was completely untouched. The throwaway account (and its lock) were deleted afterward as part of normal test cleanup, never the real protected account.
 
-### 2.5 Add Staff Edge Function (Phase 5)
+### 2.5 Add Staff Edge Function (Phase 5, extended later to allow creating full Admins)
 
 `supabase/functions/admin-create-staff` is the only piece of this project that calls the Supabase Admin API. Real account creation needs the service-role key, which must never reach the browser — so this one operation runs server-side. Design:
 - Verifies the caller is an **active `main_admin`**, using the caller's own JWT against a client scoped to it (never the privileged client) — a `sub_admin`/`collection_agent`/patient calling this function gets `403 Only an active Main Admin can add staff.` before any privileged code runs.
-- Hard-rejects any request where `role` isn't exactly `sub_admin` or `collection_agent` — `role='main_admin'` (or anything else) is refused with `400 Role must be sub_admin or collection_agent.` Super Admin status is only ever granted by the DB-level bootstrap (§2.2), never this form, and this is enforced in code, not just by omission.
+- Accepts `role` of `main_admin`, `sub_admin`, or `collection_agent`; anything else is rejected with `400`.
 - Uses `auth.admin.inviteUserByEmail()` — creates a real `auth.users` row and sends Supabase's own invite email. The invited person sets **their own** password by following that email's link. This function never creates, generates, sees, or stores a password for anyone.
 - After the signup trigger creates the default `patient`-role profile, the function promotes it to the requested role (and `parent_sub_admin_id`, for a `collection_agent`) using the service-role client — the one reviewed, audited path for this, intentionally the only code in the project that bypasses RLS on `profiles` by design.
 - Logs the action to `activity_log`.
 
+**Design change (per explicit request): `main_admin` can now be created through this UI, on purpose, with one deliberate distinction preserved.** Originally this function hard-rejected `role='main_admin'`, on the reasoning that Super Admin status should only ever come from the DB-level owner-email bootstrap (§2.2). That reasoning still holds for the *protected* Super Admin specifically — it hasn't changed, and this function still can't touch `main_admin_locks` at all. What changed is that "an admin with full access" and "the one permanently-protected Super Admin" are now treated as two different things:
+- An admin created here (or promoted here from an existing `sub_admin`/`collection_agent` via `admin/team.html`'s role dropdown, which was already possible under `profiles_main_admin_update_all` even before this change — nothing new was opened at the RLS layer) gets the real `main_admin` role and every permission that comes with it.
+- It is **never** added to `main_admin_locks`. That means, unlike the bootstrapped owner accounts, another `main_admin` can later demote or deactivate this one through the same Team Management UI — verified live (see below). The absolute-protection trigger from §2.4 only fires for uids that are actually in `main_admin_locks`, so it has no effect on these accounts either way.
+- The three original owner emails (§2.2) and any account promoted through `sync_owner_admins()`/the signup trigger's owner-email match remain the only way to get a **locked**, non-revocable Super Admin. This form cannot create one.
+
 **Verified live against the deployed function (not a local simulation):**
-- A real invite sent to a throwaway alias; the resulting `profiles` row confirmed with `role='sub_admin'`, `status='active'` — genuine end-to-end success.
-- Calling the function with `role: 'main_admin'` was rejected with exactly the expected `400` error.
-- Calling the function while authenticated as a real (throwaway) `collection_agent` account was rejected with exactly the expected `403` error.
-- Test account and its invite were deleted afterward.
+- A real invite sent to a throwaway alias with `role: 'sub_admin'`; the resulting `profiles` row confirmed with `role='sub_admin'`, `status='active'`.
+- Calling the function while authenticated as a real (throwaway) `collection_agent` account was rejected with the expected `403`.
+- A real invite sent with `role: 'main_admin'`: the resulting account was confirmed `role='main_admin'`, `status='active'`, **and** confirmed absent from `main_admin_locks` (0 rows) — exactly the intended distinction from a bootstrapped Super Admin.
+- That same account was then demoted back to `sub_admin` through `admin/team.html`'s existing role dropdown and confirmed in the database — proving a UI-created admin is genuinely revocable, unlike the protected original.
+- Test accounts and their invites/log entries were deleted afterward; the real, already-live production data (a genuine sub_admin and real bookings the actual business has been using this system for since Phase 5 shipped) was left untouched.
 
 ## 3. Privilege-escalation protections (mirrors a bug the original app already found and fixed)
 

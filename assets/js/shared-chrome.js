@@ -15,6 +15,16 @@ const NAV_ITEMS = [
   { href: '/pages/track-booking.html', label: 'Track Booking', key: 'track-booking' },
 ];
 
+const STAFF_ROLES = ['main_admin', 'sub_admin', 'collection_agent'];
+
+/** Signs out for real (destroys the Supabase session, not just a UI
+ * state flip) and sends the visitor home — never leaves them sitting
+ * on a page that assumes a session still exists. */
+async function handleLogout() {
+  await supabase.auth.signOut();
+  location.href = '/index.html';
+}
+
 function navLinkHTML(item, currentKey) {
   const current = item.key === currentKey ? ' aria-current="page"' : '';
   return `<a href="${item.href}"${current}>${item.label}</a>`;
@@ -48,8 +58,10 @@ function renderHeader(currentKey) {
       <button class="nav-drawer-close" id="navDrawerClose" aria-label="Close menu">&times;</button>
       <ul>
         ${NAV_ITEMS.map(i => `<li>${navLinkHTML(i, currentKey)}</li>`).join('')}
-        <li><a href="/pages/login.html">Login</a></li>
       </ul>
+      <div id="navDrawerAuthSlot">
+        <a href="/pages/login.html" class="btn btn-ghost btn-block" style="margin-bottom:10px;">Login</a>
+      </div>
       <a href="/pages/packages.html" class="btn btn-orange btn-block">Book a Test</a>
     </aside>
   `;
@@ -65,19 +77,41 @@ function renderHeader(currentKey) {
   backdrop.addEventListener('click', closeDrawer);
 
   // Real auth-state check (not a fake logged-out placeholder) — swaps
-  // Login for a simple account menu when a session exists.
-  supabase.auth.getSession().then(({ data }) => {
-    if (data.session) {
-      const name = data.session.user.user_metadata?.full_name || data.session.user.email;
-      const slot = document.getElementById('navActionsSlot');
-      const loginBtn = document.getElementById('navLoginBtn');
-      if (loginBtn) {
-        loginBtn.outerHTML = `
-          <div class="nav-user-menu">
-            <a href="/pages/my-bookings.html" class="btn btn-ghost">👤 ${name.split('@')[0]}</a>
-          </div>`;
-      }
+  // Login for a real account menu (name, Admin Panel if staff, Logout)
+  // once a session actually exists. Role comes from a fresh `profiles`
+  // read every time (self-select is always RLS-permitted) — never
+  // trusted from anything cached client-side.
+  supabase.auth.getSession().then(async ({ data }) => {
+    if (!data.session) return;
+
+    const name = data.session.user.user_metadata?.full_name || data.session.user.email;
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, status')
+      .eq('id', data.session.user.id)
+      .maybeSingle();
+    const isStaff = profile && STAFF_ROLES.includes(profile.role) && profile.status === 'active';
+
+    const userMenuHTML = `
+      <div class="nav-user-menu" style="display:flex;align-items:center;gap:8px;">
+        <a href="/pages/my-bookings.html" class="btn btn-ghost">👤 ${name.split('@')[0]}</a>
+        ${isStaff ? `<a href="/admin/dashboard.html" class="btn btn-outline"><i class="fas fa-toolbox"></i> Admin Panel</a>` : ''}
+        <button type="button" class="btn btn-ghost" id="navLogoutBtn">Logout</button>
+      </div>`;
+
+    const loginBtn = document.getElementById('navLoginBtn');
+    if (loginBtn) loginBtn.outerHTML = userMenuHTML;
+
+    const drawerAuthSlot = document.getElementById('navDrawerAuthSlot');
+    if (drawerAuthSlot) {
+      drawerAuthSlot.innerHTML = `
+        <a href="/pages/my-bookings.html" class="btn btn-ghost btn-block" style="margin-bottom:8px;">👤 ${name.split('@')[0]}</a>
+        ${isStaff ? `<a href="/admin/dashboard.html" class="btn btn-outline btn-block" style="margin-bottom:8px;"><i class="fas fa-toolbox"></i> Admin Panel</a>` : ''}
+        <button type="button" class="btn btn-ghost btn-block" id="navDrawerLogoutBtn" style="margin-bottom:10px;">Logout</button>`;
+      document.getElementById('navDrawerLogoutBtn').addEventListener('click', handleLogout);
     }
+
+    document.getElementById('navLogoutBtn')?.addEventListener('click', handleLogout);
   });
 }
 
