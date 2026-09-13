@@ -1,0 +1,24 @@
+## ============================================================
+## Clean URLs (no .html in the address bar).
+## Netlify already serves a clean URL like /pages/tests by resolving
+## it to pages/tests.html automatically (no config needed for that
+## direction). What's missing by default is the OTHER direction: if
+## someone visits the .html URL directly (an old link, a bookmark, or
+## any internal link in this site that still spells out .html), the
+## address bar keeps showing .html unless we redirect it away. The
+## two rules below do exactly that. Order matters — the more specific
+## index.html rule must come first, or the wildcard below would catch
+## it first and send it to /index instead of /.
+## ============================================================
+
+[[redirects]]
+  from = "/index.html"
+  to = "/"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/*.html"
+  to = "/:splat"
+  status = 301
+  force = true
