@@ -124,6 +124,10 @@ export async function adminUpdateBooking(bookingId, fields) {
     patientDob: 'p_patient_dob', patientGender: 'p_patient_gender', collectionType: 'p_collection_type',
     address: 'p_address', scheduledDate: 'p_scheduled_date', slotId: 'p_slot_id',
     specialNotes: 'p_special_notes', status: 'p_status', assignedAgentId: 'p_assigned_agent_id', note: 'p_note',
+    // Migration 0011 — records money actually collected. Does NOT
+    // change final_amount at all (still fixed forever at creation); the
+    // RPC auto-promotes payment_status to 'paid' once this reaches it.
+    amountReceived: 'p_amount_received',
   };
   Object.entries(fields).forEach(([k, v]) => {
     if (v !== undefined && map[k]) payload[map[k]] = v;

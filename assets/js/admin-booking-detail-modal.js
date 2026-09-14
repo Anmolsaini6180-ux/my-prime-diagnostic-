@@ -55,6 +55,8 @@ export function initBookingDetailModal(onChanged, role) {
       <div class="review-section"><div class="review-row"><span>Item</span><span>${b.booking_items?.[0]?.name_snapshot}</span></div>
         <div class="review-row"><span>Amount</span><span>₹${Number(b.final_amount).toLocaleString('en-IN')}</span></div>
         ${b.coupon_code ? `<div class="review-row"><span>Coupon</span><span>${b.coupon_code} (−₹${b.discount_amount})</span></div>` : ''}
+        <div class="review-row"><span>Received</span><span>₹${Number(b.amount_received || 0).toLocaleString('en-IN')}</span></div>
+        <div class="review-row"><span>Balance Due</span><span style="${Number(b.final_amount) - Number(b.amount_received || 0) > 0 ? 'color:var(--danger);font-weight:700;' : 'color:var(--success);'}">₹${Math.max(Number(b.final_amount) - Number(b.amount_received || 0), 0).toLocaleString('en-IN')}</span></div>
       </div>
       <div class="review-section"><div class="review-row"><span>Schedule</span><span>${fmtDate(b.scheduled_date)}, ${b.appointment_slots?.label}</span></div>
         <div class="review-row"><span>Collection</span><span>${b.collection_type === 'home' ? '🏠 Home Collection' : '🏥 Walk-in at Lab'}</span></div>
@@ -96,6 +98,7 @@ export function initBookingDetailModal(onChanged, role) {
           </div>
           <div class="field"><label style="font-size:12px;">Date</label><input type="date" id="editDate" value="${b.scheduled_date}" style="font-size:13px;padding:8px;"></div>
           <div class="field"><label style="font-size:12px;">Time Slot</label><select id="editSlot" style="font-size:13px;padding:8px;"><option value="${b.slot_id}">${b.appointment_slots?.label} (current)</option></select></div>
+          <div class="field"><label style="font-size:12px;">Amount Received (₹) — of ₹${Number(b.final_amount).toLocaleString('en-IN')} total</label><input type="number" id="editAmountReceived" min="0" step="1" value="${Number(b.amount_received || 0)}" style="font-size:13px;padding:8px;"></div>
           <div class="field"><label style="font-size:12px;">Special Notes</label><textarea id="editNotes" style="font-size:13px;padding:8px;width:100%;box-sizing:border-box;">${b.special_notes || ''}</textarea></div>
           <div id="editMsg" style="font-size:12px;margin:6px 0;"></div>
           <button type="button" class="btn btn-primary btn-block" id="saveEditBtn" style="font-size:13px;">Save Changes</button>
@@ -200,6 +203,12 @@ export function initBookingDetailModal(onChanged, role) {
         msgEl.style.color = 'var(--danger)';
         return;
       }
+      const amountReceivedVal = document.getElementById('editAmountReceived').value.trim();
+      if (amountReceivedVal !== '' && Number(amountReceivedVal) < 0) {
+        msgEl.textContent = 'Amount received cannot be negative.';
+        msgEl.style.color = 'var(--danger)';
+        return;
+      }
       const confirmed = await confirmDialog('Save these changes to the booking? This is recorded in the booking\'s history.', { confirmLabel: 'Save Changes', danger: false });
       if (!confirmed) return;
 
@@ -218,6 +227,7 @@ export function initBookingDetailModal(onChanged, role) {
           scheduledDate: document.getElementById('editDate').value,
           slotId: document.getElementById('editSlot').value || undefined,
           specialNotes: document.getElementById('editNotes').value.trim() || null,
+          amountReceived: amountReceivedVal === '' ? undefined : Number(amountReceivedVal),
         });
         showToast('Booking updated', 'success');
         const fresh = await fetchBookingDetail(b.id);

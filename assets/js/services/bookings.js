@@ -41,6 +41,13 @@ export async function submitBooking(draft) {
     // actually owns the booking from the CALLER's own role server-side,
     // never from this value. See migration 0010.
     p_source: draft.source || 'web',
+    // Both staff-only, enforced server-side from the caller's real DB
+    // role (never trusted from here) — see migration 0011. Left
+    // undefined/null/0 by every non-staff caller (the public wizard
+    // never sets these fields on its draft at all), so this is a no-op
+    // for patients even if someone tampered with the client code.
+    p_override_amount: draft.overrideAmount ?? null,
+    p_amount_received: draft.amountReceived ?? 0,
   });
   if (error) throw error;
   return data && data[0]; // { booking_id, booking_code, final_amount, status }

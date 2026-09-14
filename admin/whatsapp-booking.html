@@ -15,8 +15,9 @@
 <link rel="stylesheet" href="/assets/css/booking.css">
 <link rel="stylesheet" href="/assets/css/admin.css">
 <style>
-  .wb-card { background: var(--card-bg); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 20px; margin-bottom: 16px; max-width: 720px; }
-  .wb-card h3 { font-size: 14px; margin-bottom: 14px; }
+  .wb-card { background: var(--card-bg); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 20px; margin-bottom: 16px; max-width: 720px; box-shadow: 0 1px 2px rgba(16,42,67,0.04); }
+  .wb-card h3 { font-size: 14px; margin-bottom: 14px; display: flex; align-items: center; }
+  .wb-step-badge { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; min-width: 22px; border-radius: 50%; background: var(--blue); color: #fff; font-size: 11.5px; font-weight: 700; margin-right: 9px; }
   .wb-row { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
   @media (max-width: 640px) { .wb-row { grid-template-columns: 1fr; } }
   #pasteBox { width: 100%; min-height: 140px; font-family: inherit; font-size: 13px; padding: 12px; border: 1.5px solid var(--gray-200); border-radius: 8px; box-sizing: border-box; }
@@ -24,6 +25,7 @@
   .needs-confirm-tag { font-size: 10.5px; color: var(--orange); font-weight: 700; margin-left: 6px; }
   .wb-item-pick { display: flex; justify-content: space-between; padding: 8px 10px; border: 1.5px solid var(--gray-200); border-radius: 8px; margin-bottom: 5px; cursor: pointer; font-size: 12.5px; }
   .wb-item-pick.selected { border-color: var(--blue); background: var(--blue-pale); }
+  .wb-amount-input { font-size: 15px !important; font-weight: 700; }
   #reviewSection { display: none; }
 </style>
 </head>
@@ -35,7 +37,7 @@
     <div class="admin-content">
 
       <div class="wb-card">
-        <h3>1. Paste WhatsApp Message</h3>
+        <h3><span class="wb-step-badge">1</span> Paste WhatsApp Message</h3>
         <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">Paste the customer's message (e.g. "Name: ... / Phone: ... / Test: ... / Collection: ... / Address: ... / Date: ... / Time: ..."). Nothing is booked yet — you'll review every field first.</p>
         <textarea id="pasteBox" placeholder="Name: Anmol Saini&#10;Phone: 9876543210&#10;Age: 20&#10;Gender: Male&#10;Test: Full Body Health Checkup&#10;Collection: Home Collection&#10;Address: XYZ, Sector 62, Noida - 201301&#10;Date: 10 Sept&#10;Time: 10 AM"></textarea>
         <button type="button" class="btn btn-primary" id="parseBtn" style="margin-top:10px;"><i class="fas fa-wand-magic-sparkles"></i> Parse Details</button>
@@ -44,9 +46,9 @@
 
       <div id="reviewSection">
         <div class="wb-card">
-          <h3>2. Review &amp; Edit Extracted Details <span style="font-weight:400;font-size:11.5px;color:var(--text-muted);">— nothing is saved until you click Create Booking</span></h3>
+          <h3><span class="wb-step-badge">2</span> Review &amp; Edit Extracted Details <span style="font-weight:400;font-size:11.5px;color:var(--text-muted);margin-left:6px;">— nothing is saved until you click Create Booking</span></h3>
           <div class="wb-row">
-            <div class="field"><label>Full Name *</label><input type="text" id="pName"></div>
+            <div class="field"><label>Full Name</label><input type="text" id="pName" placeholder="Leave blank to default to &quot;WhatsApp Customer&quot;"></div>
             <div class="field"><label>Mobile Number *</label><input type="tel" id="pPhone" maxlength="10"></div>
           </div>
           <div class="wb-row">
@@ -56,45 +58,52 @@
         </div>
 
         <div class="wb-card">
-          <h3>3. Match to Catalogue Item *</h3>
+          <h3><span class="wb-step-badge">3</span> Match to Catalogue Item *</h3>
           <div id="parsedItemHint" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
           <input type="search" id="itemSearch" placeholder="Search tests &amp; packages…" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--gray-200);border-radius:8px;margin-bottom:10px;font-size:13px;">
           <div id="itemListRoot" style="max-height:220px;overflow-y:auto;"></div>
         </div>
 
         <div class="wb-card">
-          <h3>4. Collection Type</h3>
+          <h3><span class="wb-step-badge">4</span> Collection Type</h3>
           <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr;">
             <div id="colHome" style="border:2px solid var(--gray-200);border-radius:var(--radius-md);padding:14px;text-align:center;cursor:pointer;">🏠<br>Home Collection</div>
             <div id="colLab" style="border:2px solid var(--gray-200);border-radius:var(--radius-md);padding:14px;text-align:center;cursor:pointer;">🏥<br>Walk-in at Lab</div>
           </div>
           <div id="addressFields" style="margin-top:14px;">
-            <div class="field"><label>Address Line *</label><input type="text" id="addrLine"></div>
+            <div class="field"><label>Address Line</label><input type="text" id="addrLine"></div>
             <div class="wb-row">
               <div class="field"><label>City</label><input type="text" id="addrCity"></div>
-              <div class="field"><label>Pincode *</label><input type="text" id="addrPin" maxlength="6"></div>
+              <div class="field"><label>Pincode</label><input type="text" id="addrPin" maxlength="6"></div>
             </div>
+            <p style="font-size:11px;color:var(--text-muted);margin:2px 0 0;">Leave blank if the customer hasn't confirmed it yet — the booking can still be created and this gets flagged as a follow-up note instead of blocking you.</p>
           </div>
         </div>
 
         <div class="wb-card">
-          <h3>5. Date &amp; Time <span id="parsedDateHint" class="needs-confirm-tag"></span></h3>
+          <h3><span class="wb-step-badge">5</span> Date &amp; Time <span id="parsedDateHint" class="needs-confirm-tag"></span></h3>
           <div class="wb-row">
-            <div class="field"><label>Date *</label><input type="date" id="schedDate"></div>
-            <div class="field"><label>Time Slot *</label><select id="schedSlot"><option value="">Pick a date first</option></select></div>
+            <div class="field"><label>Date</label><input type="date" id="schedDate"></div>
+            <div class="field"><label>Time Slot</label><select id="schedSlot"><option value="">Pick a date first</option></select></div>
           </div>
+          <p style="font-size:11px;color:var(--text-muted);margin:2px 0 0;">Not confirmed yet? Leave blank — the earliest open slot in the next 7 days is auto-picked and flagged for you to confirm with the customer.</p>
         </div>
 
         <div class="wb-card">
-          <h3>6. Confirm</h3>
-          <div class="review-row"><span>Amount</span><span id="revAmount" style="font-weight:700;">₹0</span></div>
+          <h3><span class="wb-step-badge">6</span> Amount &amp; Confirm</h3>
+          <div class="wb-row">
+            <div class="field"><label>Total Amount (₹) *</label><input type="number" id="amountInput" class="wb-amount-input" min="0" step="1"></div>
+            <div class="field"><label>Amount Received (₹)</label><input type="number" id="amountReceivedInput" min="0" step="1" value="0"></div>
+          </div>
+          <p style="font-size:11px;color:var(--text-muted);margin:2px 0 12px;">Total defaults to the catalogue price once you pick an item above — edit it if you and the customer agreed on a different amount. Amount Received is whatever's already been collected (cash or online); leave it 0 if nothing yet.</p>
+          <div class="review-row"><span>Balance Due</span><span id="balanceDue" style="font-weight:700;">₹0</span></div>
           <p style="font-size:11.5px;color:var(--text-muted);margin:8px 0;">Pay Later (cash at collection) — no online payment gateway exists in this system.</p>
           <div id="submitMsg" style="font-size:13px;margin:8px 0;"></div>
           <button type="button" class="btn btn-orange btn-block btn-lg" id="createBtn"><i class="fas fa-calendar-check"></i> Create Booking</button>
         </div>
 
         <div class="wb-card" id="waSendCard" style="display:none;">
-          <h3>7. Send Confirmation to Patient</h3>
+          <h3><span class="wb-step-badge">7</span> Send Confirmation to Patient</h3>
           <button type="button" class="btn btn-outline btn-block" id="waSendBtn" style="border-color:#25D366;color:#25D366;"><i class="fab fa-whatsapp"></i> Send WhatsApp Confirmation</button>
           <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Opens WhatsApp with a pre-filled message for you to send — this does not send automatically (no WhatsApp Business API is integrated).</p>
         </div>
@@ -112,7 +121,7 @@
   import { fetchSettings } from '/assets/js/services/settings.js';
   import { parseWhatsAppBooking } from '/assets/js/whatsapp-parser.js';
   import { buildBookingConfirmationMessage, buildWhatsAppLink } from '/assets/js/whatsapp-helper.js';
-  import { showToast } from '/assets/js/admin-ui.js';
+  import { showToast, confirmDialog } from '/assets/js/admin-ui.js';
 
   const session = await requireStaffSession();
   if (!session) { /* redirected */ }
@@ -144,6 +153,35 @@
     document.getElementById('schedDate').min = new Date().toISOString().split('T')[0];
     document.getElementById('schedDate').addEventListener('change', loadSlots);
     document.getElementById('createBtn').addEventListener('click', createBooking);
+    document.getElementById('amountInput').addEventListener('input', updateBalanceDue);
+    document.getElementById('amountReceivedInput').addEventListener('input', updateBalanceDue);
+  }
+
+  function updateBalanceDue() {
+    const amount = Number(document.getElementById('amountInput').value) || 0;
+    const received = Number(document.getElementById('amountReceivedInput').value) || 0;
+    const balance = Math.max(amount - received, 0);
+    const el = document.getElementById('balanceDue');
+    el.textContent = '₹' + balance.toLocaleString('en-IN');
+    el.style.color = balance > 0 ? 'var(--danger)' : 'var(--success)';
+  }
+
+  /** Used only when staff leave date/slot blank — picks the earliest
+   * open slot in the next week rather than blocking booking creation.
+   * The caller is responsible for flagging this as a follow-up item;
+   * this never silently pretends the customer actually confirmed it. */
+  async function autoPickEarliestSlot() {
+    for (let i = 0; i <= 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toISOString().split('T')[0];
+      try {
+        const slots = await fetchSlotAvailability(dateStr);
+        const open = slots.find(s => s.is_available);
+        if (open) return { date: dateStr, slotId: open.slot_id, label: open.label };
+      } catch (e) { /* try the next day */ }
+    }
+    return null;
   }
 
   function setCollectionType(type) {
@@ -195,7 +233,8 @@
         root.querySelectorAll('.wb-item-pick').forEach(x => x.classList.remove('selected'));
         el.classList.add('selected');
         selectedItem = { itemType: el.dataset.type, itemId: el.dataset.id, itemName: el.dataset.name, itemPrice: Number(el.dataset.price) };
-        document.getElementById('revAmount').textContent = '₹' + selectedItem.itemPrice.toLocaleString('en-IN');
+        document.getElementById('amountInput').value = selectedItem.itemPrice;
+        updateBalanceDue();
       });
     });
   }
@@ -211,23 +250,88 @@
     } catch (e) { sel.innerHTML = '<option>Could not load slots</option>'; }
   }
 
+  // ------------------------------------------------------------
+  // What's genuinely required to create a booking at all (Postgres
+  // NOT NULL / CHECK constraints that create_booking() can't bypass,
+  // see migration 0004/0005/0011): a valid 10-digit phone (needed for
+  // Track Booking + the WhatsApp confirmation itself — there's no way
+  // to reach the customer again without it) and a real catalogue item
+  // (needed to bill and process an actual test). Everything else
+  // below is auto-filled with an honest placeholder rather than
+  // blocking the booking — the placeholder is always recorded as a
+  // follow-up note on the booking, never presented as if the customer
+  // confirmed it.
+  // ------------------------------------------------------------
   let submitting = false;
   async function createBooking() {
     const msgEl = document.getElementById('submitMsg');
     msgEl.textContent = ''; msgEl.style.color = '';
-    const name = document.getElementById('pName').value.trim();
+    const followUps = [];
+
+    let name = document.getElementById('pName').value.trim();
+    if (!name) {
+      name = 'WhatsApp Customer';
+      document.getElementById('pName').value = name;
+      followUps.push('Patient name was not given');
+    }
+
     const phone = document.getElementById('pPhone').value.trim();
-    if (!/^[a-zA-Z\s]{2,}$/.test(name)) { msgEl.textContent = 'Enter a valid patient name.'; msgEl.style.color = 'var(--danger)'; return; }
-    if (!/^[6-9]\d{9}$/.test(phone)) { msgEl.textContent = 'Enter a valid 10-digit mobile number.'; msgEl.style.color = 'var(--danger)'; return; }
-    if (!selectedItem) { msgEl.textContent = 'Select the matching catalogue item.'; msgEl.style.color = 'var(--danger)'; return; }
-    const date = document.getElementById('schedDate').value;
-    const slotId = document.getElementById('schedSlot').value;
-    if (!date || !slotId) { msgEl.textContent = 'Choose a date and time slot.'; msgEl.style.color = 'var(--danger)'; return; }
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      msgEl.textContent = 'A valid 10-digit mobile number is required — it\'s the only way to track this booking or send a WhatsApp confirmation, so it can\'t be left blank.';
+      msgEl.style.color = 'var(--danger)';
+      document.getElementById('pPhone').focus();
+      return;
+    }
+
+    if (!selectedItem) {
+      msgEl.textContent = 'Select the matching catalogue item — required to bill and process the correct test.';
+      msgEl.style.color = 'var(--danger)';
+      return;
+    }
+
+    let address = null;
     if (collectionType === 'home') {
       const line = document.getElementById('addrLine').value.trim();
       const pin = document.getElementById('addrPin').value.trim();
-      if (!line || !/^\d{6}$/.test(pin)) { msgEl.textContent = 'Enter a complete address with a valid 6-digit pincode.'; msgEl.style.color = 'var(--danger)'; return; }
+      const pinOk = /^\d{6}$/.test(pin);
+      if (!line || !pinOk) followUps.push('Home address/pincode was incomplete — confirm before dispatch');
+      address = {
+        addressLine: line || 'Address to be confirmed — call customer',
+        city: document.getElementById('addrCity').value.trim(),
+        pincode: pinOk ? pin : '000000',
+        landmark: '',
+      };
     }
+
+    let date = document.getElementById('schedDate').value;
+    let slotId = document.getElementById('schedSlot').value;
+    let slotLabel = document.getElementById('schedSlot').selectedOptions[0]?.textContent;
+    if (!date || !slotId) {
+      const auto = await autoPickEarliestSlot();
+      if (!auto) { msgEl.textContent = 'Could not find any open slot in the next 7 days — please pick a date manually.'; msgEl.style.color = 'var(--danger)'; return; }
+      date = auto.date; slotId = auto.slotId; slotLabel = auto.label;
+      document.getElementById('schedDate').value = date;
+      await loadSlots();
+      document.getElementById('schedSlot').value = slotId;
+      followUps.push('Date & time were not confirmed by the customer — call to arrange their real preference');
+    }
+
+    const amountVal = Number(document.getElementById('amountInput').value);
+    if (!Number.isFinite(amountVal) || amountVal < 0) { msgEl.textContent = 'Enter a valid total amount.'; msgEl.style.color = 'var(--danger)'; return; }
+    const overrideAmount = amountVal !== selectedItem.itemPrice ? amountVal : null;
+
+    const receivedVal = Number(document.getElementById('amountReceivedInput').value || 0);
+    if (!Number.isFinite(receivedVal) || receivedVal < 0) { msgEl.textContent = 'Amount received cannot be negative.'; msgEl.style.color = 'var(--danger)'; return; }
+
+    if (followUps.length) {
+      const proceed = await confirmDialog(
+        'This booking can be created now, but the following weren\'t confirmed and will be saved as follow-up notes:<br><br>— ' + followUps.join('<br>— ') +
+        '<br><br>Create it anyway?',
+        { confirmLabel: 'Create Anyway', danger: false }
+      );
+      if (!proceed) return;
+    }
+
     if (submitting) return;
     submitting = true;
     const btn = document.getElementById('createBtn');
@@ -238,20 +342,18 @@
         itemType: selectedItem.itemType, itemId: selectedItem.itemId, itemName: selectedItem.itemName, itemPrice: selectedItem.itemPrice,
         patientName: name, patientPhone: phone, patientEmail: null,
         patientDob: null, patientGender: document.getElementById('pGender').value || null,
-        collectionType,
-        address: collectionType === 'home' ? {
-          addressLine: document.getElementById('addrLine').value.trim(),
-          city: document.getElementById('addrCity').value.trim(),
-          pincode: document.getElementById('addrPin').value.trim(),
-          landmark: '',
-        } : null,
+        collectionType, address,
         scheduledDate: date, slotId, couponCode: null, paymentMode: 'offline',
         idempotencyKey: crypto.randomUUID(), source: 'whatsapp',
+        overrideAmount, amountReceived: receivedVal,
+        specialNotes: followUps.length ? ('⚠️ Needs confirmation: ' + followUps.join('; ')) : null,
       };
       const result = await submitBooking(draft);
-      lastCreatedBooking = { ...draft, bookingCode: result.booking_code, finalAmount: result.final_amount, slotLabel: document.getElementById('schedSlot').selectedOptions[0]?.textContent };
+      lastCreatedBooking = { ...draft, bookingCode: result.booking_code, finalAmount: result.final_amount, slotLabel };
       showToast(`Booking ${result.booking_code} created`, 'success');
-      msgEl.innerHTML = `✅ Booking <strong>${result.booking_code}</strong> created — ₹${Number(result.final_amount).toLocaleString('en-IN')}. <a href="/admin/bookings.html?code=${result.booking_code}">Open it</a>.`;
+      msgEl.innerHTML = `✅ Booking <strong>${result.booking_code}</strong> created — ₹${Number(result.final_amount).toLocaleString('en-IN')}`
+        + (receivedVal > 0 ? ` (₹${receivedVal.toLocaleString('en-IN')} received, ₹${Math.max(result.final_amount - receivedVal, 0).toLocaleString('en-IN')} due)` : '')
+        + `. ${followUps.length ? '⚠️ Follow up needed — see notes on the booking. ' : ''}<a href="/admin/bookings.html?code=${result.booking_code}">Open it</a>.`;
       msgEl.style.color = 'var(--success)';
       btn.innerHTML = '<i class="fas fa-check"></i> Created';
       document.getElementById('waSendCard').style.display = 'block';
