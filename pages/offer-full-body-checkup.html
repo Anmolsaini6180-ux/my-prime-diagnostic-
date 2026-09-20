@@ -51,6 +51,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <h1 style="margin-top:14px;">Complete health checkup at <span>₹999</span></h1>
         <p>13 essential tests in one comprehensive package, with free home sample collection and fast results.</p>
         <div class="offer-hero-actions">
+          <a class="btn btn-orange btn-lg" id="bookNowBtn" href="#"><i class="fas fa-calendar-check"></i> Book Now</a>
           <a class="btn btn-green btn-lg" id="waBookBtn" href="#" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Book on WhatsApp</a>
           <a class="btn btn-outline btn-lg" id="callBtn" href="tel:+917428456590"><i class="fas fa-phone"></i> Call Now</a>
         </div>
@@ -105,7 +106,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
               <li>Fast report delivery</li>
               <li>NABL accredited lab</li>
             </ul>
-            <a class="btn btn-green btn-lg" id="waBookBtn2" href="#" target="_blank" rel="noopener">Book ₹999 Package</a>
+            <a class="btn btn-orange btn-lg" id="bookNowBtn2" href="#"><i class="fas fa-calendar-check"></i> Book ₹999 Package</a>
           </div>
           <div class="offer-highlight-card">
             <h3>Package Highlights</h3>
@@ -191,7 +192,14 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <script type="module">
   import { mountChrome } from '/assets/js/shared-chrome.js';
   import { fetchSettings } from '/assets/js/services/settings.js';
+  import { fetchPackageBySlug } from '/assets/js/services/catalog.js';
+  import { startDraft } from '/assets/js/booking-draft.js';
   mountChrome('offer');
+
+  // This page's "Full Body Health Checkup ₹999" IS the live `advanced-health`
+  // package (renamed/repriced there, not a separate catalog entry) — see
+  // DATABASE.md / migration 0013_seed_full_body_checkup_package.
+  const FULL_BODY_SLUG = 'advanced-health';
 
   // Admin WhatsApp number — falls back to the known real number if
   // app_settings hasn't got one configured (there is no
@@ -208,9 +216,43 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   }
 
   const genericMsg = 'Hi My Prime Diagnostic, I want to book the Full Body Health Checkup at ₹999.';
-  ['waBookBtn', 'waBookBtn2', 'waBookBtn3', 'waFloatBtn'].forEach(id => {
+
+  // waBookBtn / waBookBtn3 / waFloatBtn stay genuine WhatsApp contact
+  // links, untouched — Book Now (below) is the real booking mechanism.
+  ['waBookBtn', 'waBookBtn3', 'waFloatBtn'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.href = waLink(genericMsg);
+  });
+
+  // Book Now — reuses the exact same booking wizard every other package
+  // uses: fetch the real package from Supabase (never hard-coded), stash
+  // it as a draft, then hand off to booking/patient-details.html. See
+  // pages/package-detail.html's bookPkgBtn handler for the same pattern.
+  let fullBodyPackage = null;
+  try {
+    fullBodyPackage = await fetchPackageBySlug(FULL_BODY_SLUG);
+  } catch (e) { /* fetch failed — goToBooking() falls back to WhatsApp below */ }
+
+  function goToBooking() {
+    if (fullBodyPackage) {
+      startDraft({
+        itemType: 'package',
+        itemId: fullBodyPackage.id,
+        itemName: fullBodyPackage.name,
+        itemPrice: fullBodyPackage.price,
+      });
+      location.href = '/booking/patient-details.html';
+    } else {
+      // Couldn't load the package right now (offline, etc.) — don't
+      // strand the visitor on a dead button; fall back to the WhatsApp
+      // lead path, which works independently of this fetch.
+      window.open(waLink(genericMsg), '_blank', 'noopener');
+    }
+  }
+
+  ['bookNowBtn', 'bookNowBtn2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', (e) => { e.preventDefault(); goToBooking(); });
   });
 
   document.getElementById('leadForm').addEventListener('submit', (e) => {
